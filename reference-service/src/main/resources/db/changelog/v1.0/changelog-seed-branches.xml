@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="seed-branches" author="Anna">
+        <insert tableName="branches" schemaName="ref">
+            <column name="code" value="1212"/>
+            <column name="name" value="ИТЦ"/>
+            <column name="active" valueBoolean="true"/>
+        </insert>
+        <insert tableName="branches" schemaName="ref">
+            <column name="code" value="1213"/>
+            <column name="name" value="УМТСиК"/>
+            <column name="active" valueBoolean="true"/>
+        </insert>
+        <insert tableName="branches" schemaName="ref">
+            <column name="code" value="1214"/>
+            <column name="name" value="УТТиСТ"/>
+            <column name="active" valueBoolean="true"/>
+        </insert>
+        <insert tableName="branches" schemaName="ref">
+            <column name="code" value="1215"/>
+            <column name="name" value="УООП"/>
+            <column name="active" valueBoolean="true"/>
+        </insert>
+        <insert tableName="branches" schemaName="ref">
+            <column name="code" value="1221"/>
+            <column name="name" value="УАВР"/>
+            <column name="active" valueBoolean="true"/>
+        </insert>
+        <insert tableName="branches" schemaName="ref">
+            <column name="code" value="1222"/>
+            <column name="name" value="Экогаз"/>
+            <column name="active" valueBoolean="true"/>
+        </insert>
+        <insert tableName="branches" schemaName="ref">
+            <column name="code" value="1209"/>
+            <column name="name" value="Администрация"/>
+            <column name="active" valueBoolean="true"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>
