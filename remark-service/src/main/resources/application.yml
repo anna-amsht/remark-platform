@@ -1,0 +1,31 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: remark-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/remark_platform
+    username: postgres
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: remark
+  liquibase:
+    default-schema: remark
+    liquibase-schema: public
+    change-log: classpath:db/changelog/db.changelog-master.xml
+
+app:
+  internal:
+    secret: ${INTERNAL_SECRET:dev-secret-change-me}
+  user-service:
+    base-url: http://localhost:8089
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs

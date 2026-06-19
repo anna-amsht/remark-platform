@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="create-remarks" author="remark-platform">
+        <createTable tableName="remarks" schemaName="remark">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="remark_number" type="VARCHAR(32)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="branch_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="object_building" type="VARCHAR(500)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="discovered_at" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_by_user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="assigned_master_id" type="UUID"/>
+            <column name="status" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="resolution_message" type="TEXT"/>
+            <column name="resolved_at" type="TIMESTAMP WITH TIME ZONE"/>
+            <column name="closed_at" type="TIMESTAMP WITH TIME ZONE"/>
+            <column name="report_sent_at" type="TIMESTAMP WITH TIME ZONE"/>
+            <column name="created_at" type="TIMESTAMP WITH TIME ZONE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP WITH TIME ZONE">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex indexName="idx_remarks_branch_id" tableName="remarks" schemaName="remark">
+            <column name="branch_id"/>
+        </createIndex>
+        <createIndex indexName="idx_remarks_status" tableName="remarks" schemaName="remark">
+            <column name="status"/>
+        </createIndex>
+        <createIndex indexName="idx_remarks_assigned_master_id" tableName="remarks" schemaName="remark">
+            <column name="assigned_master_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

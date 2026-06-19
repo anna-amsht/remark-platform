@@ -15,6 +15,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
@@ -26,6 +27,7 @@ import java.util.UUID;
 @Table(name = "users", schema = "user")
 @Getter
 @Setter
+@NoArgsConstructor
 public class User {
 
     @Id

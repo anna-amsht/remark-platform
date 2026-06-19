@@ -23,6 +23,7 @@
         <module>reference-service</module>
         <module>user-service</module>
         <module>auth-service</module>
+        <module>remark-service</module>
     </modules>
 
     <properties>

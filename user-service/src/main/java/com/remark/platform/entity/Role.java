@@ -7,6 +7,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.UUID;
@@ -15,6 +16,7 @@ import java.util.UUID;
 @Table(name = "roles", schema = "user")
 @Getter
 @Setter
+@NoArgsConstructor
 public class Role {
 
     @Id
