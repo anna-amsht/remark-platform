@@ -5,7 +5,6 @@ import com.remark.platform.dto.UserResponse;
 import com.remark.platform.entity.RoleCode;
 import com.remark.platform.service.UserService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -23,12 +22,15 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/users")
-@RequiredArgsConstructor
 public class UserController {
 
     public static final String USER_ID_HEADER = "X-User-Id";
 
     private final UserService userService;
+
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)

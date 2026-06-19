@@ -10,6 +10,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 public class UserAuthenticationService {
@@ -27,6 +29,18 @@ public class UserAuthenticationService {
         }
 
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+            throw new InvalidCredentialsException();
+        }
+
+        return UserMapper.toAuthenticatedResponse(user);
+    }
+
+    @Transactional(readOnly = true)
+    public AuthenticatedUserResponse getActiveUserById(UUID userId) {
+        User user = userRepository.findByIdWithRoles(userId)
+                .orElseThrow(InvalidCredentialsException::new);
+
+        if (user.getStatus() != UserStatus.ACTIVE) {
             throw new InvalidCredentialsException();
         }
 
