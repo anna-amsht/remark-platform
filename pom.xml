@@ -24,6 +24,7 @@
         <module>user-service</module>
         <module>auth-service</module>
         <module>remark-service</module>
+        <module>gateway</module>
     </modules>
 
     <properties>
