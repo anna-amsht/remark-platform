@@ -1,6 +1,9 @@
 package com.remark.platform.service;
 
+import com.remark.platform.client.NotificationClient;
+import com.remark.platform.client.ReportClient;
 import com.remark.platform.client.UserServiceClient;
+import com.remark.platform.dto.InternalRemarkResponse;
 import com.remark.platform.dto.AssignMasterRequest;
 import com.remark.platform.dto.CreateRemarkRequest;
 import com.remark.platform.dto.RemarkResponse;
@@ -29,17 +32,23 @@ public class RemarkService {
     private final RemarkStatusHistoryRepository remarkStatusHistoryRepository;
     private final RemarkNumberGenerator remarkNumberGenerator;
     private final UserServiceClient userServiceClient;
+    private final NotificationClient notificationClient;
+    private final ReportClient reportClient;
 
     public RemarkService(
             RemarkRepository remarkRepository,
             RemarkStatusHistoryRepository remarkStatusHistoryRepository,
             RemarkNumberGenerator remarkNumberGenerator,
-            UserServiceClient userServiceClient
+            UserServiceClient userServiceClient,
+            NotificationClient notificationClient,
+            ReportClient reportClient
     ) {
         this.remarkRepository = remarkRepository;
         this.remarkStatusHistoryRepository = remarkStatusHistoryRepository;
         this.remarkNumberGenerator = remarkNumberGenerator;
         this.userServiceClient = userServiceClient;
+        this.notificationClient = notificationClient;
+        this.reportClient = reportClient;
     }
 
     @Transactional
@@ -129,7 +138,29 @@ public class RemarkService {
         remark.setResolutionMessage(request.resolutionMessage().trim());
         remark.setResolvedAt(Instant.now());
         transition(remark, RemarkStatus.RESOLVED, actor.userId(), request.resolutionMessage().trim());
-        return RemarkMapper.toResponse(remarkRepository.save(remark));
+        Remark saved = remarkRepository.save(remark);
+
+        var creator = userServiceClient.getActiveUser(saved.getCreatedByUserId());
+        notificationClient.sendRemarkResolved(
+                creator.email(),
+                saved.getRemarkNumber(),
+                saved.getObjectBuilding()
+        );
+        reportClient.requestReport(saved.getId());
+
+        return RemarkMapper.toResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public InternalRemarkResponse findByIdInternal(UUID id) {
+        return RemarkMapper.toInternalResponse(getRemark(id));
+    }
+
+    @Transactional
+    public InternalRemarkResponse markReportSent(UUID id) {
+        Remark remark = getRemark(id);
+        remark.setReportSentAt(Instant.now());
+        return RemarkMapper.toInternalResponse(remarkRepository.save(remark));
     }
 
     @Transactional

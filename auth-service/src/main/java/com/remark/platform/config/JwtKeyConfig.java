@@ -11,8 +11,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
+import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
@@ -22,14 +21,8 @@ import java.security.interfaces.RSAPublicKey;
 public class JwtKeyConfig {
 
     @Bean
-    RsaKeyPair rsaKeyPair() throws NoSuchAlgorithmException {
-        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-        generator.initialize(2048);
-        KeyPair keyPair = generator.generateKeyPair();
-        return new RsaKeyPair(
-                (RSAPublicKey) keyPair.getPublic(),
-                (RSAPrivateKey) keyPair.getPrivate()
-        );
+    RsaKeyPair rsaKeyPair(JwtProperties jwtProperties) throws NoSuchAlgorithmException, IOException {
+        return RsaKeyLoader.loadOrGenerate(jwtProperties);
     }
 
     @Bean

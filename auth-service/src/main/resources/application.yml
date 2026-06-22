@@ -30,6 +30,8 @@ app:
     key-id: auth-key-1
     access-token-ttl: 15m
     refresh-token-ttl: 7d
+    private-key-path: ${APP_JWT_PRIVATE_KEY_PATH:}
+    public-key-path: ${APP_JWT_PUBLIC_KEY_PATH:}
   cookie:
     secure: ${COOKIE_SECURE:false}
 

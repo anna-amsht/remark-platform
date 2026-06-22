@@ -1,5 +1,6 @@
 package com.remark.platform.service;
 
+import com.remark.platform.client.NotificationClient;
 import com.remark.platform.client.ReferenceClient;
 import com.remark.platform.dto.RegisterRequest;
 import com.remark.platform.dto.UserResponse;
@@ -38,6 +39,7 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final ReferenceClient referenceClient;
     private final PasswordEncoder passwordEncoder;
+    private final NotificationClient notificationClient;
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
@@ -95,7 +97,9 @@ public class UserService {
         assertCanApprove(approver, target);
 
         target.setStatus(UserStatus.ACTIVE);
-        return UserMapper.toResponse(userRepository.save(target));
+        User saved = userRepository.save(target);
+        notificationClient.sendUserApproved(saved.getEmail(), saved.getFullName());
+        return UserMapper.toResponse(saved);
     }
 
     @Transactional
