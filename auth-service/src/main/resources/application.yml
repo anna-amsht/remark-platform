@@ -5,8 +5,8 @@ spring:
   application:
     name: auth-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/remark_platform
-    username: postgres
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/remark_platform}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD}
   jpa:
     open-in-view: false
@@ -24,14 +24,14 @@ app:
   internal:
     secret: ${INTERNAL_SECRET:dev-secret-change-me}
   user-service:
-    base-url: http://localhost:8089
+    base-url: ${APP_USER_SERVICE_URL:http://localhost:8089}
   jwt:
     issuer: remark-platform-auth
     key-id: auth-key-1
     access-token-ttl: 15m
     refresh-token-ttl: 7d
   cookie:
-    secure: false
+    secure: ${COOKIE_SECURE:false}
 
 springdoc:
   api-docs:
