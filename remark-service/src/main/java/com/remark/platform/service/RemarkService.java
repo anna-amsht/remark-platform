@@ -84,7 +84,7 @@ public class RemarkService {
 
         if (actor.hasRole(RoleCode.MASTER) && !actor.hasAnyRole(RoleCode.ADMIN, RoleCode.BRANCH_HEAD, RoleCode.APPLICANT)) {
             remarks = remarkRepository.findByAssignedMasterIdOrderByCreatedAtDesc(actor.userId());
-        } else if (actor.hasRole(RoleCode.ADMIN)) {
+        } else if (actor.hasAnyRole(RoleCode.ADMIN, RoleCode.BRANCH_HEAD)) {
             if (branchIdFilter != null) {
                 remarks = status == null
                         ? remarkRepository.findByBranchIdOrderByCreatedAtDesc(branchIdFilter)
@@ -230,9 +230,6 @@ public class RemarkService {
     }
 
     private void assertSameBranch(Remark remark, UserContext actor) {
-        if (actor.hasRole(RoleCode.ADMIN)) {
-            return;
-        }
         UUID branchId = actor.requireBranchId();
         if (!remark.getBranchId().equals(branchId)) {
             throw new RemarkAccessDeniedException("Remark belongs to another branch");
@@ -246,10 +243,10 @@ public class RemarkService {
     }
 
     private boolean canView(Remark remark, UserContext actor) {
-        if (actor.hasRole(RoleCode.ADMIN)) {
+        if (actor.hasAnyRole(RoleCode.ADMIN, RoleCode.BRANCH_HEAD)) {
             return true;
         }
-        if (actor.hasAnyRole(RoleCode.BRANCH_HEAD, RoleCode.APPLICANT)) {
+        if (actor.hasRole(RoleCode.APPLICANT)) {
             UUID branchId = actor.branchId();
             return branchId != null && remark.getBranchId().equals(branchId);
         }
