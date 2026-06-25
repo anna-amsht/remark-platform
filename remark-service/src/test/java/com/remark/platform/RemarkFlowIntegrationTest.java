@@ -25,9 +25,9 @@ import java.time.LocalDate;
 import java.util.Set;
 import java.util.UUID;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -118,6 +118,22 @@ class RemarkFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ASSIGNED"));
 
+        mockMvc.perform(patch("/api/v1/remarks/{id}/estimated-resolution", remarkId)
+                        .header("X-User-Id", masterId)
+                        .header("X-Branch-Id", branchId)
+                        .header("X-User-Roles", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "estimatedResolutionAt": "%sT00:00:00"
+                                }
+                                """.formatted(LocalDate.now().plusDays(3))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ASSIGNED"))
+                .andExpect(jsonPath("$.estimatedResolutionDuration").value(3))
+                .andExpect(jsonPath("$.estimatedResolutionUnit").value("DAYS"))
+                .andExpect(jsonPath("$.estimatedResolutionAt").value(LocalDate.now().plusDays(3) + "T00:00:00"));
+
         mockMvc.perform(patch("/api/v1/remarks/{id}/start", remarkId)
                         .header("X-User-Id", masterId)
                         .header("X-Branch-Id", branchId)
@@ -133,6 +149,8 @@ class RemarkFlowIntegrationTest {
                         .content("{\"resolutionMessage\":\"Fixed the crack\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("RESOLVED"));
+
+        verify(reportClient).requestReport(remarkId);
 
         mockMvc.perform(patch("/api/v1/remarks/{id}/close", remarkId)
                         .header("X-User-Id", branchHeadId)

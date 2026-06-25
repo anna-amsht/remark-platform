@@ -20,15 +20,25 @@ public class NotificationClient {
         this.internalSecret = internalSecret;
     }
 
-    public void sendReportNotification(String recipientEmail, String remarkNumber, String body) {
+    public void sendReportNotification(
+            String recipientEmail,
+            String remarkNumber,
+            String body,
+            String attachmentFileName,
+            String attachmentContentType,
+            String attachmentBase64
+    ) {
         notificationServiceRestClient.post()
                 .uri("/internal/notifications")
                 .header(INTERNAL_SECRET_HEADER, internalSecret)
                 .body(new SendNotificationRequest(
                         "REMARK_REPORT",
                         recipientEmail,
-                        "Отчёт по замечанию " + remarkNumber,
-                        body
+                        "Отчет по замечанию " + remarkNumber,
+                        body,
+                        attachmentFileName,
+                        attachmentContentType,
+                        attachmentBase64
                 ))
                 .retrieve()
                 .toBodilessEntity();
@@ -38,7 +48,10 @@ public class NotificationClient {
             String type,
             String recipientEmail,
             String subject,
-            String body
+            String body,
+            String attachmentFileName,
+            String attachmentContentType,
+            String attachmentBase64
     ) {
     }
 }

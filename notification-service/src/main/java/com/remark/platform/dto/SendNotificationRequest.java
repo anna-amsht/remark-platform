@@ -10,6 +10,9 @@ public record SendNotificationRequest(
         @NotNull NotificationType type,
         @NotBlank @Email String recipientEmail,
         @NotBlank @Size(max = 500) String subject,
-        @NotBlank String body
+        @NotBlank String body,
+        String attachmentFileName,
+        String attachmentContentType,
+        String attachmentBase64
 ) {
 }

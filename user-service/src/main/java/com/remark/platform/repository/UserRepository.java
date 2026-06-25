@@ -57,4 +57,18 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             @Param("branchId") UUID branchId,
             @Param("roleCode") RoleCode roleCode
     );
+
+    @Query("""
+            SELECT DISTINCT u FROM User u
+            JOIN FETCH u.roles r
+            WHERE u.status = :status
+              AND u.branchId = :branchId
+              AND r.code IN :roleCodes
+            ORDER BY u.fullName ASC
+            """)
+    List<User> findActiveByBranchAndRoleCodes(
+            @Param("status") UserStatus status,
+            @Param("branchId") UUID branchId,
+            @Param("roleCodes") Collection<RoleCode> roleCodes
+    );
 }

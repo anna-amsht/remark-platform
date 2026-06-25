@@ -32,7 +32,7 @@ public class NotificationService {
         Notification saved = notificationRepository.save(notification);
 
         try {
-            emailNotificationSender.send(saved);
+            emailNotificationSender.send(saved, request);
             saved.setStatus(mailProperties.enabled() ? DeliveryStatus.SENT : DeliveryStatus.LOGGED);
             saved.setSentAt(Instant.now());
         } catch (Exception ex) {

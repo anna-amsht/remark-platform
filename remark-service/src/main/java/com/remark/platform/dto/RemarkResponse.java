@@ -1,9 +1,11 @@
 package com.remark.platform.dto;
 
+import com.remark.platform.entity.EstimatedResolutionUnit;
 import com.remark.platform.entity.RemarkStatus;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record RemarkResponse(
@@ -15,6 +17,9 @@ public record RemarkResponse(
         LocalDate discoveredAt,
         UUID createdByUserId,
         UUID assignedMasterId,
+        Integer estimatedResolutionDuration,
+        EstimatedResolutionUnit estimatedResolutionUnit,
+        LocalDateTime estimatedResolutionAt,
         RemarkStatus status,
         String resolutionMessage,
         Instant resolvedAt,

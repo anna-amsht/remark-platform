@@ -4,6 +4,7 @@ import com.remark.platform.dto.AssignMasterRequest;
 import com.remark.platform.dto.CreateRemarkRequest;
 import com.remark.platform.dto.RemarkResponse;
 import com.remark.platform.dto.ResolveRemarkRequest;
+import com.remark.platform.dto.SetEstimatedResolutionRequest;
 import com.remark.platform.entity.RemarkStatus;
 import com.remark.platform.security.UserContext;
 import com.remark.platform.service.RemarkService;
@@ -93,6 +94,18 @@ public class RemarkController {
     ) {
         UserContext actor = UserContext.fromHeaders(userId, branchId, roles);
         return remarkService.startWork(id, actor);
+    }
+
+    @PatchMapping("/{id}/estimated-resolution")
+    public RemarkResponse setEstimatedResolution(
+            @PathVariable UUID id,
+            @Valid @RequestBody SetEstimatedResolutionRequest request,
+            @RequestHeader(USER_ID_HEADER) UUID userId,
+            @RequestHeader(value = BRANCH_ID_HEADER, required = false) UUID branchId,
+            @RequestHeader(USER_ROLES_HEADER) String roles
+    ) {
+        UserContext actor = UserContext.fromHeaders(userId, branchId, roles);
+        return remarkService.setEstimatedResolution(id, request, actor);
     }
 
     @PatchMapping("/{id}/resolve")

@@ -1,9 +1,11 @@
 package com.remark.platform.client;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -33,6 +35,19 @@ public class UserServiceClient {
             throw new IllegalStateException("User not found: " + userId);
         }
         return response;
+    }
+
+    public List<UserProfileResponse> findActiveUsersByBranchAndRole(UUID branchId, String role) {
+        return userServiceRestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/internal/users")
+                        .queryParam("branchId", branchId)
+                        .queryParam("role", role)
+                        .build())
+                .header(INTERNAL_SECRET_HEADER, internalSecret)
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {
+                });
     }
 
     public record UserProfileResponse(

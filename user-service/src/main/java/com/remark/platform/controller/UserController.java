@@ -41,6 +41,11 @@ public class UserController {
         return userService.findPendingApprovals(approverId);
     }
 
+    @GetMapping("/managed")
+    public List<UserResponse> findManaged(@RequestHeader(USER_ID_HEADER) UUID managerId) {
+        return userService.findManagedEmployees(managerId);
+    }
+
     @PatchMapping("/{id}/approve")
     public UserResponse approve(
             @PathVariable UUID id,
@@ -55,6 +60,14 @@ public class UserController {
             @RequestHeader(USER_ID_HEADER) UUID approverId
     ) {
         return userService.reject(id, approverId);
+    }
+
+    @PatchMapping("/{id}/dismiss")
+    public UserResponse dismiss(
+            @PathVariable UUID id,
+            @RequestHeader(USER_ID_HEADER) UUID managerId
+    ) {
+        return userService.dismiss(id, managerId);
     }
 
     @GetMapping("/me")

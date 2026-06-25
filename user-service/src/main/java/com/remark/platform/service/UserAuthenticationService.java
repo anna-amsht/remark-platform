@@ -1,6 +1,7 @@
 package com.remark.platform.service;
 
 import com.remark.platform.dto.AuthenticatedUserResponse;
+import com.remark.platform.entity.RoleCode;
 import com.remark.platform.exceptions.InvalidCredentialsException;
 import com.remark.platform.entity.User;
 import com.remark.platform.entity.UserStatus;
@@ -10,6 +11,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -45,6 +47,14 @@ public class UserAuthenticationService {
         }
 
         return UserMapper.toAuthenticatedResponse(user);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AuthenticatedUserResponse> findActiveUsersByBranchAndRole(UUID branchId, RoleCode roleCode) {
+        return userRepository.findActiveByBranchAndRole(UserStatus.ACTIVE, branchId, roleCode)
+                .stream()
+                .map(UserMapper::toAuthenticatedResponse)
+                .toList();
     }
 
     private String normalizeEmail(String email) {

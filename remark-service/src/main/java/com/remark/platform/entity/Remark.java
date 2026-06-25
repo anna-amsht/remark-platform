@@ -15,6 +15,7 @@ import lombok.Setter;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -47,6 +48,16 @@ public class Remark {
 
     @Column(name = "assigned_master_id")
     private UUID assignedMasterId;
+
+    @Column(name = "estimated_resolution_duration")
+    private Integer estimatedResolutionDuration;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estimated_resolution_unit", length = 16)
+    private EstimatedResolutionUnit estimatedResolutionUnit;
+
+    @Column(name = "estimated_resolution_at")
+    private LocalDateTime estimatedResolutionAt;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)

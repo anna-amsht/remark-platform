@@ -29,6 +29,10 @@ spring:
           uri: ${APP_REMARK_SERVICE_URL:http://localhost:8083}
           predicates:
             - Path=/api/v1/remarks/**
+        - id: report-service
+          uri: ${APP_REPORT_SERVICE_URL:http://localhost:8086}
+          predicates:
+            - Path=/api/v1/reports/**
   security:
     oauth2:
       resourceserver:

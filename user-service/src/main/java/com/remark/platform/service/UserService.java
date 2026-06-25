@@ -125,6 +125,29 @@ public class UserService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<UserResponse> findManagedEmployees(UUID managerId) {
+        User manager = getActiveUser(managerId);
+        UUID branchId = requireBranchId(manager);
+
+        Set<RoleCode> managedRoles = managedRoleCodesForManager(manager);
+        return userRepository.findActiveByBranchAndRoleCodes(UserStatus.ACTIVE, branchId, managedRoles)
+                .stream()
+                .filter(user -> !user.getId().equals(managerId))
+                .map(UserMapper::toResponse)
+                .toList();
+    }
+
+    @Transactional
+    public UserResponse dismiss(UUID userId, UUID managerId) {
+        User manager = getActiveUser(managerId);
+        User target = getActiveUser(userId);
+        assertCanDismiss(manager, target);
+
+        target.setStatus(UserStatus.DISMISSED);
+        return UserMapper.toResponse(userRepository.save(target));
+    }
+
     private void validateRegistration(RegisterRequest request) {
         if (!SELF_REGISTER_ROLES.contains(request.requestedRole())) {
             throw new InvalidRegistrationException("Role cannot be registered via self-registration: "
@@ -187,6 +210,34 @@ public class UserService {
             return EnumSet.of(RoleCode.APPLICANT, RoleCode.MASTER);
         }
         throw new ApprovalNotAllowedException("User cannot review pending registrations: " + approver.getId());
+    }
+
+    private Set<RoleCode> managedRoleCodesForManager(User manager) {
+        if (hasRole(manager, RoleCode.ADMIN)) {
+            return EnumSet.of(RoleCode.MASTER, RoleCode.BRANCH_HEAD);
+        }
+        if (hasRole(manager, RoleCode.BRANCH_HEAD)) {
+            return EnumSet.of(RoleCode.MASTER);
+        }
+        throw new ApprovalNotAllowedException("User cannot manage employees: " + manager.getId());
+    }
+
+    private void assertCanDismiss(User manager, User target) {
+        UUID managerBranchId = requireBranchId(manager);
+        UUID targetBranchId = requireBranchId(target);
+        if (!managerBranchId.equals(targetBranchId)) {
+            throw new ApprovalNotAllowedException("Manager and employee must belong to the same branch");
+        }
+
+        RoleCode targetRole = getSingleRoleCode(target);
+        if (hasRole(manager, RoleCode.ADMIN)
+                && (targetRole == RoleCode.MASTER || targetRole == RoleCode.BRANCH_HEAD)) {
+            return;
+        }
+        if (hasRole(manager, RoleCode.BRANCH_HEAD) && targetRole == RoleCode.MASTER) {
+            return;
+        }
+        throw new ApprovalNotAllowedException("Manager cannot dismiss role " + targetRole);
     }
 
     private RoleCode getSingleRoleCode(User user) {

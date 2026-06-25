@@ -1,13 +1,14 @@
 package com.remark.platform.service;
 
 import com.remark.platform.client.NotificationClient;
-import com.remark.platform.client.ReportClient;
 import com.remark.platform.client.UserServiceClient;
 import com.remark.platform.dto.InternalRemarkResponse;
 import com.remark.platform.dto.AssignMasterRequest;
 import com.remark.platform.dto.CreateRemarkRequest;
 import com.remark.platform.dto.RemarkResponse;
 import com.remark.platform.dto.ResolveRemarkRequest;
+import com.remark.platform.dto.SetEstimatedResolutionRequest;
+import com.remark.platform.entity.EstimatedResolutionUnit;
 import com.remark.platform.entity.Remark;
 import com.remark.platform.entity.RemarkStatus;
 import com.remark.platform.entity.RemarkStatusHistory;
@@ -18,10 +19,13 @@ import com.remark.platform.repository.RemarkRepository;
 import com.remark.platform.repository.RemarkStatusHistoryRepository;
 import com.remark.platform.security.RoleCode;
 import com.remark.platform.security.UserContext;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,7 +37,7 @@ public class RemarkService {
     private final RemarkNumberGenerator remarkNumberGenerator;
     private final UserServiceClient userServiceClient;
     private final NotificationClient notificationClient;
-    private final ReportClient reportClient;
+    private final ApplicationEventPublisher eventPublisher;
 
     public RemarkService(
             RemarkRepository remarkRepository,
@@ -41,14 +45,14 @@ public class RemarkService {
             RemarkNumberGenerator remarkNumberGenerator,
             UserServiceClient userServiceClient,
             NotificationClient notificationClient,
-            ReportClient reportClient
+            ApplicationEventPublisher eventPublisher
     ) {
         this.remarkRepository = remarkRepository;
         this.remarkStatusHistoryRepository = remarkStatusHistoryRepository;
         this.remarkNumberGenerator = remarkNumberGenerator;
         this.userServiceClient = userServiceClient;
         this.notificationClient = notificationClient;
-        this.reportClient = reportClient;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -124,8 +128,35 @@ public class RemarkService {
         Remark remark = getRemark(id);
         assertAssignedMaster(remark, actor);
         assertStatus(remark, RemarkStatus.ASSIGNED);
+        assertEstimatedResolutionSet(remark);
 
         transition(remark, RemarkStatus.IN_PROGRESS, actor.userId(), "Work started");
+        return RemarkMapper.toResponse(remarkRepository.save(remark));
+    }
+
+    @Transactional
+    public RemarkResponse setEstimatedResolution(UUID id, SetEstimatedResolutionRequest request, UserContext actor) {
+        Remark remark = getRemark(id);
+        assertAssignedMaster(remark, actor);
+        assertCanEstimateResolution(remark);
+
+        LocalDateTime discoveredAt = remark.getDiscoveredAt().atStartOfDay();
+        if (!request.estimatedResolutionAt().isAfter(discoveredAt)) {
+            throw new InvalidRemarkTransitionException("Estimated resolution date must be after discovered date");
+        }
+
+        EstimatedDuration estimatedDuration = calculateEstimatedDuration(discoveredAt, request.estimatedResolutionAt());
+        remark.setEstimatedResolutionAt(request.estimatedResolutionAt());
+        remark.setEstimatedResolutionDuration(estimatedDuration.duration());
+        remark.setEstimatedResolutionUnit(estimatedDuration.unit());
+
+        saveHistory(
+                remark.getId(),
+                remark.getStatus(),
+                remark.getStatus(),
+                actor.userId(),
+                "Estimated resolution date set"
+        );
         return RemarkMapper.toResponse(remarkRepository.save(remark));
     }
 
@@ -134,6 +165,7 @@ public class RemarkService {
         Remark remark = getRemark(id);
         assertAssignedMaster(remark, actor);
         assertStatus(remark, RemarkStatus.IN_PROGRESS);
+        assertEstimatedResolutionSet(remark);
 
         remark.setResolutionMessage(request.resolutionMessage().trim());
         remark.setResolvedAt(Instant.now());
@@ -146,7 +178,7 @@ public class RemarkService {
                 saved.getRemarkNumber(),
                 saved.getObjectBuilding()
         );
-        reportClient.requestReport(saved.getId());
+        eventPublisher.publishEvent(new RemarkResolvedEvent(saved.getId()));
 
         return RemarkMapper.toResponse(saved);
     }
@@ -229,6 +261,31 @@ public class RemarkService {
         }
     }
 
+    private void assertCanEstimateResolution(Remark remark) {
+        if (remark.getStatus() != RemarkStatus.ASSIGNED && remark.getStatus() != RemarkStatus.IN_PROGRESS) {
+            throw new InvalidRemarkTransitionException(
+                    "Estimated resolution can be set only for assigned or in-progress remarks"
+            );
+        }
+    }
+
+    private void assertEstimatedResolutionSet(Remark remark) {
+        if (remark.getEstimatedResolutionAt() == null) {
+            throw new InvalidRemarkTransitionException("Estimated resolution date must be set by assigned master");
+        }
+    }
+
+    private EstimatedDuration calculateEstimatedDuration(LocalDateTime discoveredAt, LocalDateTime estimatedAt) {
+        long hours = Math.max(1, (Duration.between(discoveredAt, estimatedAt).toMinutes() + 59) / 60);
+        if (hours % (24 * 7) == 0) {
+            return new EstimatedDuration((int) (hours / (24 * 7)), EstimatedResolutionUnit.WEEKS);
+        }
+        if (hours % 24 == 0) {
+            return new EstimatedDuration((int) (hours / 24), EstimatedResolutionUnit.DAYS);
+        }
+        return new EstimatedDuration((int) hours, EstimatedResolutionUnit.HOURS);
+    }
+
     private void assertSameBranch(Remark remark, UserContext actor) {
         UUID branchId = actor.requireBranchId();
         if (!remark.getBranchId().equals(branchId)) {
@@ -263,5 +320,8 @@ public class RemarkService {
                     "Remark must be in status " + expectedStatus + ", but was " + remark.getStatus()
             );
         }
+    }
+
+    private record EstimatedDuration(int duration, EstimatedResolutionUnit unit) {
     }
 }

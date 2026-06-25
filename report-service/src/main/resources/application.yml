@@ -29,6 +29,8 @@ app:
     base-url: ${APP_NOTIFICATION_SERVICE_URL:http://localhost:8085}
   user-service:
     base-url: ${APP_USER_SERVICE_URL:http://localhost:8089}
+  reference-service:
+    base-url: ${APP_REFERENCE_SERVICE_URL:http://localhost:8084}
 
 springdoc:
   api-docs:
