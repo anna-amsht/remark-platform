@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="add-estimated-resolution-to-remarks" author="remark-platform">
+        <addColumn tableName="remarks" schemaName="remark">
+            <column name="estimated_resolution_duration" type="INT"/>
+            <column name="estimated_resolution_unit" type="VARCHAR(16)"/>
+            <column name="estimated_resolution_at" type="TIMESTAMP"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>
