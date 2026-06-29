@@ -5,16 +5,20 @@ import com.remark.platform.client.UserServiceClient;
 import com.remark.platform.dto.InternalRemarkResponse;
 import com.remark.platform.dto.AssignMasterRequest;
 import com.remark.platform.dto.CreateRemarkRequest;
+import com.remark.platform.dto.RemarkCalendarEventResponse;
 import com.remark.platform.dto.RemarkResponse;
 import com.remark.platform.dto.ResolveRemarkRequest;
+import com.remark.platform.dto.SetRemarkCalendarEventRequest;
 import com.remark.platform.dto.SetEstimatedResolutionRequest;
 import com.remark.platform.entity.EstimatedResolutionUnit;
 import com.remark.platform.entity.Remark;
+import com.remark.platform.entity.RemarkCalendarEntry;
 import com.remark.platform.entity.RemarkStatus;
 import com.remark.platform.entity.RemarkStatusHistory;
 import com.remark.platform.exceptions.InvalidRemarkTransitionException;
 import com.remark.platform.exceptions.RemarkAccessDeniedException;
 import com.remark.platform.exceptions.RemarkNotFoundException;
+import com.remark.platform.repository.RemarkCalendarEntryRepository;
 import com.remark.platform.repository.RemarkRepository;
 import com.remark.platform.repository.RemarkStatusHistoryRepository;
 import com.remark.platform.security.RoleCode;
@@ -25,14 +29,26 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class RemarkService {
 
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Europe/Minsk");
+    private static final LocalTime DEFAULT_WORK_START_TIME = LocalTime.of(9, 0);
+    private static final LocalTime DEFAULT_WORK_END_TIME = LocalTime.of(10, 0);
+
     private final RemarkRepository remarkRepository;
+    private final RemarkCalendarEntryRepository remarkCalendarEntryRepository;
     private final RemarkStatusHistoryRepository remarkStatusHistoryRepository;
     private final RemarkNumberGenerator remarkNumberGenerator;
     private final UserServiceClient userServiceClient;
@@ -41,6 +57,7 @@ public class RemarkService {
 
     public RemarkService(
             RemarkRepository remarkRepository,
+            RemarkCalendarEntryRepository remarkCalendarEntryRepository,
             RemarkStatusHistoryRepository remarkStatusHistoryRepository,
             RemarkNumberGenerator remarkNumberGenerator,
             UserServiceClient userServiceClient,
@@ -48,6 +65,7 @@ public class RemarkService {
             ApplicationEventPublisher eventPublisher
     ) {
         this.remarkRepository = remarkRepository;
+        this.remarkCalendarEntryRepository = remarkCalendarEntryRepository;
         this.remarkStatusHistoryRepository = remarkStatusHistoryRepository;
         this.remarkNumberGenerator = remarkNumberGenerator;
         this.userServiceClient = userServiceClient;
@@ -80,6 +98,91 @@ public class RemarkService {
         Remark remark = getRemark(id);
         assertCanView(remark, actor);
         return RemarkMapper.toResponse(remark);
+    }
+
+    @Transactional(readOnly = true)
+    public List<RemarkCalendarEventResponse> findCalendarEvents(
+            UserContext actor,
+            LocalDateTime from,
+            LocalDateTime to
+    ) {
+        assertCanViewCalendar(actor);
+        assertValidCalendarRange(from, to);
+        LocalDateTime rangeFrom = from != null ? from : LocalDateTime.now(BUSINESS_ZONE).minusMonths(1);
+        LocalDateTime rangeTo = to != null ? to : rangeFrom.plusMonths(3);
+        LocalDate fromDate = rangeFrom.toLocalDate();
+        LocalDate toDate = rangeTo.toLocalDate().plusDays(1);
+        Map<CalendarEntryKey, RemarkCalendarEntry> entries = remarkCalendarEntryRepository
+                .findByMasterIdAndWorkDateGreaterThanEqualAndWorkDateLessThan(actor.userId(), fromDate, toDate)
+                .stream()
+                .collect(Collectors.toMap(
+                        entry -> new CalendarEntryKey(entry.getRemarkId(), entry.getWorkDate()),
+                        Function.identity()
+                ));
+
+        return remarkRepository.findByAssignedMasterIdOrderByCreatedAtDesc(actor.userId())
+                .stream()
+                .filter(remark -> remark.getEstimatedResolutionAt() != null)
+                .filter(remark -> remark.getStatus() == RemarkStatus.ASSIGNED
+                        || remark.getStatus() == RemarkStatus.IN_PROGRESS)
+                .filter(remark -> overlapsCalendarRange(remark, rangeFrom, rangeTo))
+                .flatMap(remark -> buildCalendarEvents(remark, fromDate, toDate, entries).stream())
+                .sorted(Comparator.comparing(RemarkCalendarEventResponse::start)
+                        .thenComparing(RemarkCalendarEventResponse::remarkNumber))
+                .toList();
+    }
+
+    @Transactional
+    public RemarkCalendarEventResponse setCalendarEvent(
+            UUID id,
+            SetRemarkCalendarEventRequest request,
+            UserContext actor
+    ) {
+        Remark remark = getRemark(id);
+        assertAssignedMaster(remark, actor);
+        assertCanEstimateResolution(remark);
+        assertEstimatedResolutionSet(remark);
+        assertCalendarDateWithinResolutionPeriod(remark, request.workDate());
+        if (!request.workEndTime().isAfter(request.workStartTime())) {
+            throw new InvalidRemarkTransitionException("Calendar event end time must be after start time");
+        }
+
+        RemarkCalendarEntry entry = remarkCalendarEntryRepository
+                .findByRemarkIdAndMasterIdAndWorkDate(remark.getId(), actor.userId(), request.workDate())
+                .orElseGet(() -> {
+                    RemarkCalendarEntry created = new RemarkCalendarEntry();
+                    created.setRemarkId(remark.getId());
+                    created.setMasterId(actor.userId());
+                    created.setWorkDate(request.workDate());
+                    return created;
+                });
+        entry.setWorkStartTime(request.workStartTime());
+        entry.setWorkEndTime(request.workEndTime());
+        entry.setHidden(false);
+        return toCalendarEventResponse(remark, remarkCalendarEntryRepository.save(entry));
+    }
+
+    @Transactional
+    public void removeCalendarEvent(UUID id, LocalDate workDate, UserContext actor) {
+        Remark remark = getRemark(id);
+        assertAssignedMaster(remark, actor);
+        assertCanEstimateResolution(remark);
+        assertEstimatedResolutionSet(remark);
+        assertCalendarDateWithinResolutionPeriod(remark, workDate);
+
+        RemarkCalendarEntry entry = remarkCalendarEntryRepository
+                .findByRemarkIdAndMasterIdAndWorkDate(remark.getId(), actor.userId(), workDate)
+                .orElseGet(() -> {
+                    RemarkCalendarEntry created = new RemarkCalendarEntry();
+                    created.setRemarkId(remark.getId());
+                    created.setMasterId(actor.userId());
+                    created.setWorkDate(workDate);
+                    created.setWorkStartTime(DEFAULT_WORK_START_TIME);
+                    created.setWorkEndTime(DEFAULT_WORK_END_TIME);
+                    return created;
+                });
+        entry.setHidden(true);
+        remarkCalendarEntryRepository.save(entry);
     }
 
     @Transactional(readOnly = true)
@@ -140,12 +243,15 @@ public class RemarkService {
         assertAssignedMaster(remark, actor);
         assertCanEstimateResolution(remark);
 
-        LocalDateTime discoveredAt = remark.getDiscoveredAt().atStartOfDay();
-        if (!request.estimatedResolutionAt().isAfter(discoveredAt)) {
-            throw new InvalidRemarkTransitionException("Estimated resolution date must be after discovered date");
+        LocalDateTime createdAt = LocalDateTime.ofInstant(remark.getCreatedAt(), BUSINESS_ZONE);
+        if (!request.estimatedResolutionAt().isAfter(createdAt)) {
+            throw new InvalidRemarkTransitionException("Estimated resolution date must be after remark creation date");
+        }
+        if (!request.estimatedResolutionAt().isAfter(LocalDateTime.now(BUSINESS_ZONE))) {
+            throw new InvalidRemarkTransitionException("Estimated resolution date must be after current Minsk time");
         }
 
-        EstimatedDuration estimatedDuration = calculateEstimatedDuration(discoveredAt, request.estimatedResolutionAt());
+        EstimatedDuration estimatedDuration = calculateEstimatedDuration(createdAt, request.estimatedResolutionAt());
         remark.setEstimatedResolutionAt(request.estimatedResolutionAt());
         remark.setEstimatedResolutionDuration(estimatedDuration.duration());
         remark.setEstimatedResolutionUnit(estimatedDuration.unit());
@@ -252,6 +358,18 @@ public class RemarkService {
         }
     }
 
+    private void assertCanViewCalendar(UserContext actor) {
+        if (!actor.hasRole(RoleCode.MASTER)) {
+            throw new RemarkAccessDeniedException("Only master can view repair calendar");
+        }
+    }
+
+    private void assertValidCalendarRange(LocalDateTime from, LocalDateTime to) {
+        if (from != null && to != null && !to.isAfter(from)) {
+            throw new InvalidRemarkTransitionException("Calendar range end must be after start");
+        }
+    }
+
     private void assertAssignedMaster(Remark remark, UserContext actor) {
         if (!actor.hasRole(RoleCode.MASTER)) {
             throw new RemarkAccessDeniedException("Only assigned master can perform this action");
@@ -272,6 +390,80 @@ public class RemarkService {
     private void assertEstimatedResolutionSet(Remark remark) {
         if (remark.getEstimatedResolutionAt() == null) {
             throw new InvalidRemarkTransitionException("Estimated resolution date must be set by assigned master");
+        }
+    }
+
+    private boolean overlapsCalendarRange(Remark remark, LocalDateTime rangeFrom, LocalDateTime rangeTo) {
+        LocalDateTime createdAt = LocalDateTime.ofInstant(remark.getCreatedAt(), BUSINESS_ZONE);
+        LocalDateTime estimatedAt = remark.getEstimatedResolutionAt();
+        return !estimatedAt.isBefore(rangeFrom) && createdAt.isBefore(rangeTo);
+    }
+
+    private List<RemarkCalendarEventResponse> buildCalendarEvents(
+            Remark remark,
+            LocalDate fromDate,
+            LocalDate toDate,
+            Map<CalendarEntryKey, RemarkCalendarEntry> entries
+    ) {
+        LocalDate createdDate = LocalDateTime.ofInstant(remark.getCreatedAt(), BUSINESS_ZONE).toLocalDate();
+        LocalDate estimatedDate = remark.getEstimatedResolutionAt().toLocalDate();
+        LocalDate firstDate = createdDate.isAfter(fromDate) ? createdDate : fromDate;
+        LocalDate lastExclusive = estimatedDate.plusDays(1).isBefore(toDate) ? estimatedDate.plusDays(1) : toDate;
+
+        return firstDate.datesUntil(lastExclusive)
+                .map(workDate -> {
+                    RemarkCalendarEntry entry = entries.get(new CalendarEntryKey(remark.getId(), workDate));
+                    if (entry != null && entry.isHidden()) {
+                        return null;
+                    }
+                    return entry == null
+                            ? toCalendarEventResponse(remark, workDate, DEFAULT_WORK_START_TIME, DEFAULT_WORK_END_TIME, false)
+                            : toCalendarEventResponse(remark, entry);
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
+    private RemarkCalendarEventResponse toCalendarEventResponse(Remark remark, RemarkCalendarEntry entry) {
+        return toCalendarEventResponse(
+                remark,
+                entry.getWorkDate(),
+                entry.getWorkStartTime(),
+                entry.getWorkEndTime(),
+                true
+        );
+    }
+
+    private RemarkCalendarEventResponse toCalendarEventResponse(
+            Remark remark,
+            LocalDate workDate,
+            LocalTime workStartTime,
+            LocalTime workEndTime,
+            boolean customTime
+    ) {
+        LocalDateTime start = LocalDateTime.of(workDate, workStartTime);
+        LocalDateTime end = LocalDateTime.of(workDate, workEndTime);
+        return new RemarkCalendarEventResponse(
+                remark.getId(),
+                remark.getRemarkNumber(),
+                remark.getRemarkNumber() + " - " + remark.getObjectBuilding(),
+                remark.getObjectBuilding(),
+                remark.getStatus(),
+                workDate,
+                workStartTime,
+                workEndTime,
+                start,
+                end,
+                remark.getEstimatedResolutionAt(),
+                customTime
+        );
+    }
+
+    private void assertCalendarDateWithinResolutionPeriod(Remark remark, LocalDate workDate) {
+        LocalDate createdDate = LocalDateTime.ofInstant(remark.getCreatedAt(), BUSINESS_ZONE).toLocalDate();
+        LocalDate estimatedDate = remark.getEstimatedResolutionAt().toLocalDate();
+        if (workDate.isBefore(createdDate) || workDate.isAfter(estimatedDate)) {
+            throw new InvalidRemarkTransitionException("Calendar event date must be within repair period");
         }
     }
 
@@ -323,5 +515,8 @@ public class RemarkService {
     }
 
     private record EstimatedDuration(int duration, EstimatedResolutionUnit unit) {
+    }
+
+    private record CalendarEntryKey(UUID remarkId, LocalDate workDate) {
     }
 }

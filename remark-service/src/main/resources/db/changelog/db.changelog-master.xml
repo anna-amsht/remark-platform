@@ -10,5 +10,6 @@
     <include file="db/changelog/v1.0/changelog-create-remarks.xml"/>
     <include file="db/changelog/v1.0/changelog-create-remark-status-history.xml"/>
     <include file="db/changelog/v1.1/changelog-add-estimated-resolution.xml"/>
+    <include file="db/changelog/v1.2/changelog-create-remark-calendar-events.xml"/>
 
 </databaseChangeLog>

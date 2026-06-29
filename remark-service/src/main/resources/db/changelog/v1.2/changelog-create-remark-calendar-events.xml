@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="create-remark-calendar-events" author="remark-platform">
+        <createTable tableName="remark_calendar_events" schemaName="remark">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="remark_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="master_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="work_date" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="work_start_time" type="TIME">
+                <constraints nullable="false"/>
+            </column>
+            <column name="work_end_time" type="TIME">
+                <constraints nullable="false"/>
+            </column>
+            <column name="hidden" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP WITH TIME ZONE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP WITH TIME ZONE">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint
+                tableName="remark_calendar_events"
+                schemaName="remark"
+                columnNames="remark_id, master_id, work_date"
+                constraintName="uk_remark_calendar_event_day"/>
+
+        <addForeignKeyConstraint
+                baseTableName="remark_calendar_events"
+                baseTableSchemaName="remark"
+                baseColumnNames="remark_id"
+                referencedTableName="remarks"
+                referencedTableSchemaName="remark"
+                referencedColumnNames="id"
+                constraintName="fk_remark_calendar_events_remark"/>
+
+        <createIndex indexName="idx_remark_calendar_events_master_date" tableName="remark_calendar_events" schemaName="remark">
+            <column name="master_id"/>
+            <column name="work_date"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

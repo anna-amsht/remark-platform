@@ -21,7 +21,10 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Set;
 import java.util.UUID;
 
@@ -39,6 +42,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
 class RemarkFlowIntegrationTest {
+
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Europe/Minsk");
 
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
@@ -108,6 +113,10 @@ class RemarkFlowIntegrationTest {
 
         JsonNode created = objectMapper.readTree(createResult.getResponse().getContentAsString());
         UUID remarkId = UUID.fromString(created.get("id").asText());
+        LocalDateTime estimatedResolutionAt = LocalDateTime.ofInstant(
+                Instant.parse(created.get("createdAt").asText()),
+                BUSINESS_ZONE
+        ).plusDays(3);
 
         mockMvc.perform(patch("/api/v1/remarks/{id}/assign", remarkId)
                         .header("X-User-Id", branchHeadId)
@@ -125,14 +134,28 @@ class RemarkFlowIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "estimatedResolutionAt": "%sT00:00:00"
+                                  "estimatedResolutionAt": "%s"
                                 }
-                                """.formatted(LocalDate.now().plusDays(3))))
+                                """.formatted(estimatedResolutionAt)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ASSIGNED"))
                 .andExpect(jsonPath("$.estimatedResolutionDuration").value(3))
                 .andExpect(jsonPath("$.estimatedResolutionUnit").value("DAYS"))
-                .andExpect(jsonPath("$.estimatedResolutionAt").value(LocalDate.now().plusDays(3) + "T00:00:00"));
+                .andExpect(jsonPath("$.estimatedResolutionAt").value(estimatedResolutionAt.toString()));
+
+        mockMvc.perform(get("/api/v1/remarks/calendar")
+                        .header("X-User-Id", masterId)
+                        .header("X-Branch-Id", branchId)
+                        .header("X-User-Roles", "MASTER")
+                        .param("from", estimatedResolutionAt.minusDays(1).toString())
+                        .param("to", estimatedResolutionAt.plusDays(1).toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].remarkId").value(remarkId.toString()))
+                .andExpect(jsonPath("$[0].remarkNumber").value(created.get("remarkNumber").asText()))
+                .andExpect(jsonPath("$[0].objectBuilding").value("Building A"))
+                .andExpect(jsonPath("$[0].status").value("ASSIGNED"))
+                .andExpect(jsonPath("$[0].start").value(estimatedResolutionAt.toString()))
+                .andExpect(jsonPath("$[0].estimatedResolutionAt").value(estimatedResolutionAt.toString()));
 
         mockMvc.perform(patch("/api/v1/remarks/{id}/start", remarkId)
                         .header("X-User-Id", masterId)
