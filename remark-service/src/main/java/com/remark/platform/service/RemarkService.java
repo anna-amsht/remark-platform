@@ -310,18 +310,6 @@ public class RemarkService {
                 .orElse(null);
     }
 
-    @Transactional
-    public RemarkResponse close(UUID id, UserContext actor) {
-        assertCanClose(actor);
-        Remark remark = getRemark(id);
-        assertSameBranch(remark, actor);
-        assertStatus(remark, RemarkStatus.RESOLVED);
-
-        remark.setClosedAt(Instant.now());
-        transition(remark, RemarkStatus.CLOSED, actor.userId(), "Remark closed");
-        return RemarkMapper.toResponse(remarkRepository.save(remark));
-    }
-
     private Remark getRemark(UUID id) {
         return remarkRepository.findById(id)
                 .orElseThrow(() -> new RemarkNotFoundException(id));
@@ -358,12 +346,6 @@ public class RemarkService {
     private void assertCanAssign(UserContext actor) {
         if (!actor.hasAnyRole(RoleCode.ADMIN, RoleCode.BRANCH_HEAD)) {
             throw new RemarkAccessDeniedException("User cannot assign masters");
-        }
-    }
-
-    private void assertCanClose(UserContext actor) {
-        if (!actor.hasAnyRole(RoleCode.ADMIN, RoleCode.BRANCH_HEAD)) {
-            throw new RemarkAccessDeniedException("User cannot close remarks");
         }
     }
 

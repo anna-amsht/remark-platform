@@ -39,8 +39,8 @@ public class ReportService {
     @Transactional
     public ReportResponse generate(GenerateReportRequest request) {
         InternalRemarkResponse remark = remarkServiceClient.getRemark(request.remarkId());
-        if (!"RESOLVED".equals(remark.status()) && !"CLOSED".equals(remark.status())) {
-            throw new IllegalStateException("Report can be generated only for RESOLVED or CLOSED remarks");
+        if (!"RESOLVED".equals(remark.status())) {
+            throw new IllegalStateException("Report can be generated only for RESOLVED remarks");
         }
 
         ReportPdfContext pdfContext = buildReportContext(remark);

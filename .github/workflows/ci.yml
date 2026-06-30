@@ -56,6 +56,8 @@ jobs:
           SPRING_DATASOURCE_USERNAME: remark
           SPRING_DATASOURCE_PASSWORD: remark
           INTERNAL_SECRET: ci-test-secret
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          SPRING_KAFKA_LISTENER_AUTO_STARTUP: "false"
 
   docker:
     needs: [build, test]

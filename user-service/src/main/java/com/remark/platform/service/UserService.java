@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -44,26 +45,15 @@ public class UserService {
     @Transactional
     public UserResponse register(RegisterRequest request) {
         validateRegistration(request);
-
-        if (userRepository.existsByEmailIgnoreCase(request.email())) {
-            throw new EmailAlreadyExistsException(request.email());
-        }
-
         referenceClient.ensureActiveBranchExists(request.branchId());
 
-        Role role = roleRepository.findByCode(request.requestedRole())
-                .orElseThrow(() -> new RoleNotFoundException(request.requestedRole()));
+        String email = normalizeEmail(request.email());
+        Optional<User> existingUser = userRepository.findByEmailWithRoles(email);
+        if (existingUser.isPresent()) {
+            return handleExistingRegistration(existingUser.get(), request);
+        }
 
-        User user = new User();
-        user.setEmail(normalizeEmail(request.email()));
-        user.setPasswordHash(passwordEncoder.encode(request.password()));
-        user.setFullName(request.fullName().trim());
-        user.setPosition(request.position().trim());
-        user.setBranchId(request.branchId());
-        user.setStatus(UserStatus.PENDING);
-        user.getRoles().add(role);
-
-        return UserMapper.toResponse(userRepository.save(user));
+        return UserMapper.toResponse(createPendingUser(request, email));
     }
 
     @Transactional(readOnly = true)
@@ -157,6 +147,46 @@ public class UserService {
             throw new InvalidRegistrationException("Role cannot be registered via self-registration: "
                     + request.requestedRole());
         }
+    }
+
+    private UserResponse handleExistingRegistration(User existingUser, RegisterRequest request) {
+        return switch (existingUser.getStatus()) {
+            case REJECTED, DISMISSED -> UserMapper.toResponse(reapplyRegistration(existingUser, request));
+            case PENDING -> throw new InvalidRegistrationException(
+                    "Registration is already pending approval for this email");
+            case ACTIVE -> throw new EmailAlreadyExistsException(request.email());
+        };
+    }
+
+    private User reapplyRegistration(User user, RegisterRequest request) {
+        Role role = roleRepository.findByCode(request.requestedRole())
+                .orElseThrow(() -> new RoleNotFoundException(request.requestedRole()));
+
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setFullName(request.fullName().trim());
+        user.setPosition(request.position().trim());
+        user.setBranchId(request.branchId());
+        user.setStatus(UserStatus.PENDING);
+        user.getRoles().clear();
+        user.getRoles().add(role);
+
+        return userRepository.save(user);
+    }
+
+    private User createPendingUser(RegisterRequest request, String email) {
+        Role role = roleRepository.findByCode(request.requestedRole())
+                .orElseThrow(() -> new RoleNotFoundException(request.requestedRole()));
+
+        User user = new User();
+        user.setEmail(email);
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setFullName(request.fullName().trim());
+        user.setPosition(request.position().trim());
+        user.setBranchId(request.branchId());
+        user.setStatus(UserStatus.PENDING);
+        user.getRoles().add(role);
+
+        return userRepository.save(user);
     }
 
     private User getPendingUser(UUID userId) {

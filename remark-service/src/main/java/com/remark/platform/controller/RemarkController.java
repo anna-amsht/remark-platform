@@ -162,15 +162,4 @@ public class RemarkController {
         UserContext actor = UserContext.fromHeaders(userId, branchId, roles);
         return remarkService.resolve(id, request, actor);
     }
-
-    @PatchMapping("/{id}/close")
-    public RemarkResponse close(
-            @PathVariable UUID id,
-            @RequestHeader(USER_ID_HEADER) UUID userId,
-            @RequestHeader(value = BRANCH_ID_HEADER, required = false) UUID branchId,
-            @RequestHeader(USER_ROLES_HEADER) String roles
-    ) {
-        UserContext actor = UserContext.fromHeaders(userId, branchId, roles);
-        return remarkService.close(id, actor);
-    }
 }
