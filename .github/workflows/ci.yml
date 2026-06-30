@@ -78,4 +78,4 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build Docker image
-        run: docker build --build-arg MODULE=${{ matrix.module }} -t remark-${{ matrix.module }} .
+        run: docker build -f ${{ matrix.module }}/Dockerfile -t remark-${{ matrix.module }} .

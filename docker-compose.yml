@@ -1,0 +1,172 @@
+x-service-env: &service-env
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/remark_platform
+  SPRING_DATASOURCE_USERNAME: remark
+  SPRING_DATASOURCE_PASSWORD: remark
+  INTERNAL_SECRET: ${INTERNAL_SECRET:-dev-secret-change-me}
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: remark-postgres
+    environment:
+      POSTGRES_DB: remark_platform
+      POSTGRES_USER: remark
+      POSTGRES_PASSWORD: remark
+    ports:
+      - "5432:5432"
+    volumes:
+      - remark_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U remark -d remark_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  kafka:
+    image: apache/kafka:3.9.1
+    container_name: remark-kafka
+    ports:
+      - "9092:9092"
+      - "9094:9094"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,HOST://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,HOST://localhost:9094
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: remark
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    depends_on:
+      - kafka
+
+  reference-service:
+    build:
+      context: .
+      dockerfile: reference-service/Dockerfile
+    environment:
+      <<: *service-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+    environment:
+      <<: *service-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  user-service:
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile
+    environment:
+      <<: *service-env
+      APP_REFERENCE_SERVICE_URL: http://reference-service:8084
+    depends_on:
+      postgres:
+        condition: service_healthy
+      reference-service:
+        condition: service_started
+      kafka:
+        condition: service_started
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    environment:
+      <<: *service-env
+      APP_USER_SERVICE_URL: http://user-service:8089
+      COOKIE_SECURE: "false"
+      APP_JWT_PRIVATE_KEY_PATH: /data/jwt/private.pem
+      APP_JWT_PUBLIC_KEY_PATH: /data/jwt/public.pem
+    volumes:
+      - jwt_keys:/data/jwt
+    depends_on:
+      postgres:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+
+  remark-service:
+    build:
+      context: .
+      dockerfile: remark-service/Dockerfile
+    environment:
+      <<: *service-env
+      APP_USER_SERVICE_URL: http://user-service:8089
+    depends_on:
+      postgres:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      kafka:
+        condition: service_started
+
+  report-service:
+    build:
+      context: .
+      dockerfile: report-service/Dockerfile
+    environment:
+      <<: *service-env
+      APP_REMARK_SERVICE_URL: http://remark-service:8083
+      APP_NOTIFICATION_SERVICE_URL: http://notification-service:8085
+      APP_USER_SERVICE_URL: http://user-service:8089
+      APP_REFERENCE_SERVICE_URL: http://reference-service:8084
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      notification-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+      reference-service:
+        condition: service_started
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      APP_AUTH_SERVICE_URL: http://auth-service:8082
+      APP_AUTH_JWKS_URI: http://auth-service:8082/.well-known/jwks.json
+      APP_REFERENCE_SERVICE_URL: http://reference-service:8084
+      APP_USER_SERVICE_URL: http://user-service:8089
+      APP_REMARK_SERVICE_URL: http://remark-service:8083
+      APP_REPORT_SERVICE_URL: http://report-service:8086
+      APP_NOTIFICATION_SERVICE_URL: http://notification-service:8085
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000}
+    depends_on:
+      auth-service:
+        condition: service_started
+      reference-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+      remark-service:
+        condition: service_started
+
+volumes:
+  remark_postgres_data:
+  jwt_keys:
