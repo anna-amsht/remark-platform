@@ -149,7 +149,7 @@ class RemarkFlowIntegrationTest {
                         .param("from", estimatedResolutionAt.minusDays(1).toString())
                         .param("to", estimatedResolutionAt.plusDays(1).toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[?(@.remarkId == '%s')].length()".formatted(remarkId)).value(greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.length()").value(greaterThanOrEqualTo(1)))
                 .andExpect(jsonPath("$[?(@.remarkId == '%s')][0].remarkNumber".formatted(remarkId)).value(created.get("remarkNumber").asText()))
                 .andExpect(jsonPath("$[?(@.remarkId == '%s')][0].objectBuilding".formatted(remarkId)).value("Building A"))
                 .andExpect(jsonPath("$[?(@.remarkId == '%s')][0].status".formatted(remarkId)).value("ASSIGNED"))
