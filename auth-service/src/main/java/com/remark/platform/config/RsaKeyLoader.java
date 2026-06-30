@@ -3,6 +3,7 @@ package com.remark.platform.config;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -63,7 +64,7 @@ final class RsaKeyLoader {
             byte[] decoded = Base64.getDecoder().decode(pem);
             PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(decoded);
             return (RSAPrivateKey) KeyFactory.getInstance("RSA").generatePrivate(spec);
-        } catch (Exception ex) {
+        } catch (GeneralSecurityException ex) {
             throw new IOException("Failed to read private key from " + path, ex);
         }
     }
@@ -77,7 +78,7 @@ final class RsaKeyLoader {
             byte[] decoded = Base64.getDecoder().decode(pem);
             X509EncodedKeySpec spec = new X509EncodedKeySpec(decoded);
             return (RSAPublicKey) KeyFactory.getInstance("RSA").generatePublic(spec);
-        } catch (Exception ex) {
+        } catch (GeneralSecurityException ex) {
             throw new IOException("Failed to read public key from " + path, ex);
         }
     }
