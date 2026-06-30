@@ -12,7 +12,7 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
-                .csrf(AbstractHttpConfigurer::disable)
+                .csrf(AbstractHttpConfigurer::disable) // NOSONAR S4502 - internal auth service, JWT at gateway
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .build();
     }

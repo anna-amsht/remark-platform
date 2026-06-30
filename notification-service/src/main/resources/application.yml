@@ -22,7 +22,7 @@ spring:
 
 app:
   internal:
-    secret: ${INTERNAL_SECRET:dev-secret-change-me}
+    secret: ${INTERNAL_SECRET}
 
 springdoc:
   api-docs:

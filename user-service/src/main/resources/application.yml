@@ -25,7 +25,7 @@ spring:
 
 app:
   internal:
-    secret: ${INTERNAL_SECRET:dev-secret-change-me}
+    secret: ${INTERNAL_SECRET}
   reference-service:
     base-url: ${APP_REFERENCE_SERVICE_URL:http://localhost:8084}
 

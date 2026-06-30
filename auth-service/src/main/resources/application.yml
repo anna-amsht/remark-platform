@@ -22,7 +22,7 @@ spring:
 
 app:
   internal:
-    secret: ${INTERNAL_SECRET:dev-secret-change-me}
+    secret: ${INTERNAL_SECRET}
   user-service:
     base-url: ${APP_USER_SERVICE_URL:http://localhost:8089}
   jwt:

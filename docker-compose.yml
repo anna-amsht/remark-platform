@@ -2,7 +2,7 @@ x-service-env: &service-env
   SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/remark_platform
   SPRING_DATASOURCE_USERNAME: remark
   SPRING_DATASOURCE_PASSWORD: remark
-  INTERNAL_SECRET: ${INTERNAL_SECRET:-dev-secret-change-me}
+  INTERNAL_SECRET: ${INTERNAL_SECRET:?Set INTERNAL_SECRET in .env}
   KAFKA_BOOTSTRAP_SERVERS: kafka:9092
 
 services:
