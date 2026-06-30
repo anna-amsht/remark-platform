@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="notifications-in-app-refactor" author="Anna">
+        <sql>DELETE FROM notification.notifications;</sql>
+        <addColumn tableName="notifications" schemaName="notification">
+            <column name="recipient_user_id" type="UUID"/>
+            <column name="remark_id" type="UUID"/>
+            <column name="report_id" type="UUID"/>
+        </addColumn>
+        <dropColumn tableName="notifications" schemaName="notification" columnName="recipient_email"/>
+        <addNotNullConstraint tableName="notifications" schemaName="notification"
+                              columnName="recipient_user_id" columnDataType="UUID"/>
+    </changeSet>
+
+</databaseChangeLog>

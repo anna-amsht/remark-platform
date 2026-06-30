@@ -1,18 +1,18 @@
 package com.remark.platform.dto;
 
 import com.remark.platform.entity.NotificationType;
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import java.util.UUID;
+
 public record SendNotificationRequest(
         @NotNull NotificationType type,
-        @NotBlank @Email String recipientEmail,
+        @NotNull UUID recipientUserId,
+        UUID remarkId,
+        UUID reportId,
         @NotBlank @Size(max = 500) String subject,
-        @NotBlank String body,
-        String attachmentFileName,
-        String attachmentContentType,
-        String attachmentBase64
+        @NotBlank String body
 ) {
 }

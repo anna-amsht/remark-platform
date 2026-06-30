@@ -33,6 +33,10 @@ spring:
           uri: ${APP_REPORT_SERVICE_URL:http://localhost:8086}
           predicates:
             - Path=/api/v1/reports/**
+        - id: notification-service
+          uri: ${APP_NOTIFICATION_SERVICE_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/v1/notifications/**
   security:
     oauth2:
       resourceserver:

@@ -13,6 +13,7 @@ public record InternalRemarkResponse(
         LocalDate discoveredAt,
         UUID createdByUserId,
         UUID assignedMasterId,
+        UUID assignedByUserId,
         String status,
         String resolutionMessage,
         Instant resolvedAt,

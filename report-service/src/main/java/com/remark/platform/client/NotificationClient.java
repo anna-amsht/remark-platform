@@ -4,6 +4,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.util.UUID;
+
 @Component
 public class NotificationClient {
 
@@ -21,24 +23,22 @@ public class NotificationClient {
     }
 
     public void sendReportNotification(
-            String recipientEmail,
+            UUID recipientUserId,
+            UUID remarkId,
+            UUID reportId,
             String remarkNumber,
-            String body,
-            String attachmentFileName,
-            String attachmentContentType,
-            String attachmentBase64
+            String body
     ) {
         notificationServiceRestClient.post()
                 .uri("/internal/notifications")
                 .header(INTERNAL_SECRET_HEADER, internalSecret)
                 .body(new SendNotificationRequest(
                         "REMARK_REPORT",
-                        recipientEmail,
-                        "Отчет по замечанию " + remarkNumber,
-                        body,
-                        attachmentFileName,
-                        attachmentContentType,
-                        attachmentBase64
+                        recipientUserId,
+                        remarkId,
+                        reportId,
+                        "Отчёт по замечанию " + remarkNumber,
+                        body
                 ))
                 .retrieve()
                 .toBodilessEntity();
@@ -46,12 +46,11 @@ public class NotificationClient {
 
     private record SendNotificationRequest(
             String type,
-            String recipientEmail,
+            UUID recipientUserId,
+            UUID remarkId,
+            UUID reportId,
             String subject,
-            String body,
-            String attachmentFileName,
-            String attachmentContentType,
-            String attachmentBase64
+            String body
     ) {
     }
 }

@@ -20,6 +20,7 @@
     <description>Corporate remark tracking platform</description>
 
     <modules>
+        <module>remark-common-events</module>
         <module>reference-service</module>
         <module>user-service</module>
         <module>auth-service</module>

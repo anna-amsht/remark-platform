@@ -19,6 +19,8 @@ spring:
     default-schema: report
     liquibase-schema: public
     change-log: classpath:db/changelog/db.changelog-master.xml
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
 app:
   internal:

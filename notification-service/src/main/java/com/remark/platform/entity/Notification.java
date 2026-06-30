@@ -29,8 +29,14 @@ public class Notification {
     @Column(nullable = false, length = 64)
     private NotificationType type;
 
-    @Column(name = "recipient_email", nullable = false)
-    private String recipientEmail;
+    @Column(name = "recipient_user_id", nullable = false)
+    private UUID recipientUserId;
+
+    @Column(name = "remark_id")
+    private UUID remarkId;
+
+    @Column(name = "report_id")
+    private UUID reportId;
 
     @Column(nullable = false, length = 500)
     private String subject;
@@ -42,14 +48,8 @@ public class Notification {
     @Column(nullable = false, length = 32)
     private DeliveryStatus status;
 
-    @Column(name = "error_message", columnDefinition = "TEXT")
-    private String errorMessage;
-
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
-
-    @Column(name = "sent_at")
-    private Instant sentAt;
 
     @PrePersist
     void onCreate() {

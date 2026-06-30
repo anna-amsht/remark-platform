@@ -19,16 +19,14 @@ spring:
     default-schema: remark
     liquibase-schema: public
     change-log: classpath:db/changelog/db.changelog-master.xml
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
 app:
   internal:
     secret: ${INTERNAL_SECRET:dev-secret-change-me}
   user-service:
     base-url: ${APP_USER_SERVICE_URL:http://localhost:8089}
-  notification-service:
-    base-url: ${APP_NOTIFICATION_SERVICE_URL:http://localhost:8085}
-  report-service:
-    base-url: ${APP_REPORT_SERVICE_URL:http://localhost:8086}
 
 springdoc:
   api-docs:

@@ -1,6 +1,5 @@
 package com.remark.platform.service;
 
-import com.remark.platform.client.NotificationClient;
 import com.remark.platform.client.UserServiceClient;
 import com.remark.platform.dto.InternalRemarkResponse;
 import com.remark.platform.dto.AssignMasterRequest;
@@ -52,7 +51,6 @@ public class RemarkService {
     private final RemarkStatusHistoryRepository remarkStatusHistoryRepository;
     private final RemarkNumberGenerator remarkNumberGenerator;
     private final UserServiceClient userServiceClient;
-    private final NotificationClient notificationClient;
     private final ApplicationEventPublisher eventPublisher;
 
     public RemarkService(
@@ -61,7 +59,6 @@ public class RemarkService {
             RemarkStatusHistoryRepository remarkStatusHistoryRepository,
             RemarkNumberGenerator remarkNumberGenerator,
             UserServiceClient userServiceClient,
-            NotificationClient notificationClient,
             ApplicationEventPublisher eventPublisher
     ) {
         this.remarkRepository = remarkRepository;
@@ -69,7 +66,6 @@ public class RemarkService {
         this.remarkStatusHistoryRepository = remarkStatusHistoryRepository;
         this.remarkNumberGenerator = remarkNumberGenerator;
         this.userServiceClient = userServiceClient;
-        this.notificationClient = notificationClient;
         this.eventPublisher = eventPublisher;
     }
 
@@ -279,26 +275,39 @@ public class RemarkService {
         Remark saved = remarkRepository.save(remark);
 
         var creator = userServiceClient.getActiveUser(saved.getCreatedByUserId());
-        notificationClient.sendRemarkResolved(
-                creator.email(),
+        eventPublisher.publishEvent(new RemarkResolvedApplicationEvent(
+                saved.getId(),
                 saved.getRemarkNumber(),
-                saved.getObjectBuilding()
-        );
-        eventPublisher.publishEvent(new RemarkResolvedEvent(saved.getId()));
+                saved.getBranchId(),
+                saved.getCreatedByUserId(),
+                creator.email(),
+                saved.getObjectBuilding(),
+                saved.getResolutionMessage(),
+                actor.userId()
+        ));
 
         return RemarkMapper.toResponse(saved);
     }
 
     @Transactional(readOnly = true)
     public InternalRemarkResponse findByIdInternal(UUID id) {
-        return RemarkMapper.toInternalResponse(getRemark(id));
+        Remark remark = getRemark(id);
+        return RemarkMapper.toInternalResponse(remark, findAssignedByUserId(id));
     }
 
     @Transactional
     public InternalRemarkResponse markReportSent(UUID id) {
         Remark remark = getRemark(id);
         remark.setReportSentAt(Instant.now());
-        return RemarkMapper.toInternalResponse(remarkRepository.save(remark));
+        return RemarkMapper.toInternalResponse(remarkRepository.save(remark), findAssignedByUserId(id));
+    }
+
+    private UUID findAssignedByUserId(UUID remarkId) {
+        return remarkStatusHistoryRepository.findByRemarkIdOrderByChangedAtAsc(remarkId).stream()
+                .filter(history -> history.getToStatus() == RemarkStatus.ASSIGNED)
+                .map(RemarkStatusHistory::getChangedByUserId)
+                .findFirst()
+                .orElse(null);
     }
 
     @Transactional

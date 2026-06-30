@@ -4,12 +4,14 @@ import com.remark.platform.dto.InternalRemarkResponse;
 import com.remark.platform.dto.RemarkResponse;
 import com.remark.platform.entity.Remark;
 
+import java.util.UUID;
+
 final class RemarkMapper {
 
     private RemarkMapper() {
     }
 
-    static InternalRemarkResponse toInternalResponse(Remark remark) {
+    static InternalRemarkResponse toInternalResponse(Remark remark, UUID assignedByUserId) {
         return new InternalRemarkResponse(
                 remark.getId(),
                 remark.getRemarkNumber(),
@@ -19,6 +21,7 @@ final class RemarkMapper {
                 remark.getDiscoveredAt(),
                 remark.getCreatedByUserId(),
                 remark.getAssignedMasterId(),
+                assignedByUserId,
                 remark.getStatus(),
                 remark.getResolutionMessage(),
                 remark.getResolvedAt(),

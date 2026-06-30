@@ -1,9 +1,12 @@
 package com.remark.platform.service;
 
 import com.remark.platform.client.NotificationClient;
+import com.remark.platform.kafka.ReportSentKafkaPublisher;
 import com.remark.platform.client.ReferenceServiceClient;
 import com.remark.platform.client.RemarkServiceClient;
 import com.remark.platform.client.UserServiceClient;
+import com.remark.platform.dto.ReportNotificationRecipient;
+import com.remark.platform.dto.ReportNotificationRecipient.RecipientRole;
 import com.remark.platform.dto.GenerateReportRequest;
 import com.remark.platform.dto.InternalRemarkResponse;
 import com.remark.platform.dto.ReportPdfContext;
@@ -17,10 +20,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Base64;
-import java.util.LinkedHashSet;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -33,6 +34,7 @@ public class ReportService {
     private final NotificationClient notificationClient;
     private final UserServiceClient userServiceClient;
     private final ReferenceServiceClient referenceServiceClient;
+    private final ReportSentKafkaPublisher reportSentKafkaPublisher;
 
     @Transactional
     public ReportResponse generate(GenerateReportRequest request) {
@@ -52,32 +54,17 @@ public class ReportService {
         report.setContent(pdfContent);
         Report saved = reportRepository.save(report);
 
-        String body = """
-                Уважаемый(ая) %s!
-
-                По Вашему заявлению № %s сформирован отчёт об устранении производственного дефекта.
-                Объект: %s
-
-                PDF-отчёт прилагается к данному письму.
-                """.formatted(
-                pdfContext.applicantFullName(),
-                remark.remarkNumber(),
-                remark.objectBuilding()
-        );
-
-        String attachmentBase64 = Base64.getEncoder().encodeToString(pdfContent);
-        for (String recipient : collectReportRecipients(remark)) {
+        for (ReportNotificationRecipient recipient : collectReportRecipients(remark)) {
             notificationClient.sendReportNotification(
-                    recipient,
+                    recipient.userId(),
+                    remark.id(),
+                    saved.getId(),
                     remark.remarkNumber(),
-                    body,
-                    fileName,
-                    "application/pdf",
-                    attachmentBase64
+                    buildNotificationBody(recipient.role(), remark, pdfContext)
             );
         }
 
-        remarkServiceClient.markReportSent(remark.id());
+        reportSentKafkaPublisher.publish(remark.id(), remark.remarkNumber());
 
         return toResponse(saved);
     }
@@ -139,17 +126,45 @@ public class ReportService {
         return master.fullName();
     }
 
-    private Set<String> collectReportRecipients(InternalRemarkResponse remark) {
-        Set<String> recipients = new LinkedHashSet<>();
-        UserServiceClient.UserProfileResponse creator = userServiceClient.getActiveUser(remark.createdByUserId());
-        addEmail(recipients, creator.email());
+    private List<ReportNotificationRecipient> collectReportRecipients(InternalRemarkResponse remark) {
+        List<ReportNotificationRecipient> recipients = new ArrayList<>();
+        recipients.add(new ReportNotificationRecipient(remark.createdByUserId(), RecipientRole.APPLICANT));
+
+        if (remark.assignedByUserId() != null
+                && !remark.assignedByUserId().equals(remark.createdByUserId())) {
+            recipients.add(new ReportNotificationRecipient(remark.assignedByUserId(), RecipientRole.ASSIGNER));
+        }
         return recipients;
     }
 
-    private void addEmail(Set<String> recipients, String email) {
-        if (email != null && !email.isBlank()) {
-            recipients.add(email.trim().toLowerCase());
+    private String buildNotificationBody(
+            RecipientRole role,
+            InternalRemarkResponse remark,
+            ReportPdfContext pdfContext
+    ) {
+        if (role == RecipientRole.ASSIGNER) {
+            return """
+                    Сформирован отчёт об устранении замечания № %s, которое вы направили мастеру.
+                    Заявитель: %s
+                    Объект: %s
+
+                    PDF доступен в разделе «Уведомления» и в списке отчётов.
+                    """.formatted(
+                    remark.remarkNumber(),
+                    pdfContext.applicantFullName(),
+                    remark.objectBuilding()
+            );
         }
+
+        return """
+                По вашему заявлению № %s сформирован отчёт об устранении производственного дефекта.
+                Объект: %s
+
+                PDF доступен в разделе «Уведомления» и в списке отчётов.
+                """.formatted(
+                remark.remarkNumber(),
+                remark.objectBuilding()
+        );
     }
 
     private boolean canViewReport(Report report, UUID userId, String roles) {

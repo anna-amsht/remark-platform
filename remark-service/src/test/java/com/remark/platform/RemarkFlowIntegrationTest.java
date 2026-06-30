@@ -2,8 +2,6 @@ package com.remark.platform;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.remark.platform.client.NotificationClient;
-import com.remark.platform.client.ReportClient;
 import com.remark.platform.client.UserProfileResponse;
 import com.remark.platform.client.UserServiceClient;
 import com.remark.platform.security.RoleCode;
@@ -12,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -30,7 +29,6 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -56,6 +54,8 @@ class RemarkFlowIntegrationTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.kafka.bootstrap-servers", () -> "localhost:9092");
+        registry.add("spring.kafka.listener.auto-startup", () -> "false");
     }
 
     @Autowired
@@ -68,10 +68,7 @@ class RemarkFlowIntegrationTest {
     private UserServiceClient userServiceClient;
 
     @MockBean
-    private NotificationClient notificationClient;
-
-    @MockBean
-    private ReportClient reportClient;
+    private KafkaTemplate<String, Object> kafkaTemplate;
 
     @Test
     void fullRemarkLifecycle() throws Exception {
@@ -172,8 +169,6 @@ class RemarkFlowIntegrationTest {
                         .content("{\"resolutionMessage\":\"Fixed the crack\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("RESOLVED"));
-
-        verify(reportClient).requestReport(remarkId);
 
         mockMvc.perform(patch("/api/v1/remarks/{id}/close", remarkId)
                         .header("X-User-Id", branchHeadId)

@@ -1,6 +1,5 @@
 package com.remark.platform.service;
 
-import com.remark.platform.client.NotificationClient;
 import com.remark.platform.client.ReferenceClient;
 import com.remark.platform.dto.RegisterRequest;
 import com.remark.platform.dto.UserResponse;
@@ -16,6 +15,7 @@ import com.remark.platform.exceptions.UserNotFoundException;
 import com.remark.platform.repository.RoleRepository;
 import com.remark.platform.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,7 +39,7 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final ReferenceClient referenceClient;
     private final PasswordEncoder passwordEncoder;
-    private final NotificationClient notificationClient;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
@@ -98,7 +98,11 @@ public class UserService {
 
         target.setStatus(UserStatus.ACTIVE);
         User saved = userRepository.save(target);
-        notificationClient.sendUserApproved(saved.getEmail(), saved.getFullName());
+        eventPublisher.publishEvent(new UserApprovedApplicationEvent(
+                saved.getId(),
+                saved.getEmail(),
+                saved.getFullName()
+        ));
         return UserMapper.toResponse(saved);
     }
 

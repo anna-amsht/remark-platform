@@ -1,6 +1,5 @@
 package com.remark.platform.service;
 
-import com.remark.platform.config.MailProperties;
 import com.remark.platform.dto.NotificationResponse;
 import com.remark.platform.dto.SendNotificationRequest;
 import com.remark.platform.entity.DeliveryStatus;
@@ -10,49 +9,45 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
-    private final EmailNotificationSender emailNotificationSender;
-    private final MailProperties mailProperties;
 
     @Transactional
     public NotificationResponse send(SendNotificationRequest request) {
         Notification notification = new Notification();
         notification.setType(request.type());
-        notification.setRecipientEmail(request.recipientEmail().trim().toLowerCase());
+        notification.setRecipientUserId(request.recipientUserId());
+        notification.setRemarkId(request.remarkId());
+        notification.setReportId(request.reportId());
         notification.setSubject(request.subject().trim());
         notification.setBody(request.body().trim());
-        notification.setStatus(DeliveryStatus.PENDING);
+        notification.setStatus(DeliveryStatus.DELIVERED);
+        return toResponse(notificationRepository.save(notification));
+    }
 
-        Notification saved = notificationRepository.save(notification);
-
-        try {
-            emailNotificationSender.send(saved, request);
-            saved.setStatus(mailProperties.enabled() ? DeliveryStatus.SENT : DeliveryStatus.LOGGED);
-            saved.setSentAt(Instant.now());
-        } catch (Exception ex) {
-            saved.setStatus(DeliveryStatus.FAILED);
-            saved.setErrorMessage(ex.getMessage());
-        }
-
-        Notification result = notificationRepository.save(saved);
-        return toResponse(result);
+    @Transactional(readOnly = true)
+    public List<NotificationResponse> findForUser(UUID userId) {
+        return notificationRepository.findByRecipientUserIdOrderByCreatedAtDesc(userId).stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     private NotificationResponse toResponse(Notification notification) {
         return new NotificationResponse(
                 notification.getId(),
                 notification.getType(),
-                notification.getRecipientEmail(),
+                notification.getRecipientUserId(),
+                notification.getRemarkId(),
+                notification.getReportId(),
                 notification.getSubject(),
-                notification.getStatus(),
-                notification.getCreatedAt(),
-                notification.getSentAt()
+                notification.getBody(),
+                notification.getCreatedAt()
         );
     }
 }
