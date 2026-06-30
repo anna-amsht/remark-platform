@@ -112,7 +112,7 @@ jobs:
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
           SPRING_KAFKA_LISTENER_AUTO_STARTUP: "false"
         run: >
-          mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+          mvn -B verify -Pcoverage org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
           -Dsonar.host.url=https://sonarcloud.io
           -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
           -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
