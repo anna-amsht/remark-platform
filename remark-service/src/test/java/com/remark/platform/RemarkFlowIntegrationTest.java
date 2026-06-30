@@ -82,7 +82,10 @@ class RemarkFlowIntegrationTest {
         UUID applicantId = UUID.randomUUID();
         UUID branchHeadId = UUID.randomUUID();
         UUID masterId = UUID.randomUUID();
-        LocalDateTime estimatedResolutionAt = LocalDateTime.now(BUSINESS_ZONE).plusDays(3);
+        LocalDateTime estimatedResolutionAt = LocalDateTime.now(BUSINESS_ZONE)
+                .plusDays(3)
+                .withSecond(0)
+                .withNano(0);
 
         doNothing().when(userServiceClient).ensureActiveMasterInBranch(eq(masterId), eq(branchId));
         when(userServiceClient.getActiveUser(applicantId)).thenReturn(
@@ -127,7 +130,7 @@ class RemarkFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ASSIGNED"));
 
-        mockMvc.perform(patch("/api/v1/remarks/{id}/estimated-resolution", remarkId)
+        MvcResult estimatedResult = mockMvc.perform(patch("/api/v1/remarks/{id}/estimated-resolution", remarkId)
                         .header("X-User-Id", masterId)
                         .header("X-Branch-Id", branchId)
                         .header("X-User-Roles", "MASTER")
@@ -139,16 +142,20 @@ class RemarkFlowIntegrationTest {
                                 """.formatted(estimatedResolutionAt)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ASSIGNED"))
-                .andExpect(jsonPath("$.estimatedResolutionDuration").value(3))
-                .andExpect(jsonPath("$.estimatedResolutionUnit").value("DAYS"))
-                .andExpect(jsonPath("$.estimatedResolutionAt").value(estimatedResolutionAt.toString()));
+                .andReturn();
+
+        JsonNode estimatedRemark = objectMapper.readTree(estimatedResult.getResponse().getContentAsString());
+        LocalDateTime storedEstimatedAt = LocalDateTime.parse(estimatedRemark.get("estimatedResolutionAt").asText());
+        assertThat(storedEstimatedAt).isEqualTo(estimatedResolutionAt);
+        assertThat(estimatedRemark.get("estimatedResolutionDuration").asInt()).isEqualTo(3);
+        assertThat(estimatedRemark.get("estimatedResolutionUnit").asText()).isEqualTo("DAYS");
 
         MvcResult calendarResult = mockMvc.perform(get("/api/v1/remarks/calendar")
                         .header("X-User-Id", masterId)
                         .header("X-Branch-Id", branchId)
                         .header("X-User-Roles", "MASTER")
-                        .param("from", estimatedResolutionAt.minusDays(1).toString())
-                        .param("to", estimatedResolutionAt.plusDays(1).toString()))
+                        .param("from", storedEstimatedAt.minusDays(1).toString())
+                        .param("to", storedEstimatedAt.plusDays(1).toString()))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -164,8 +171,8 @@ class RemarkFlowIntegrationTest {
         assertThat(calendarEvent.get("remarkNumber").asText()).isEqualTo(created.get("remarkNumber").asText());
         assertThat(calendarEvent.get("objectBuilding").asText()).isEqualTo("Building A");
         assertThat(calendarEvent.get("status").asText()).isEqualTo("ASSIGNED");
-        assertThat(calendarEvent.get("estimatedResolutionAt").asText())
-                .isEqualTo(estimatedResolutionAt.toString());
+        assertThat(LocalDateTime.parse(calendarEvent.get("estimatedResolutionAt").asText()))
+                .isEqualTo(storedEstimatedAt);
 
         mockMvc.perform(patch("/api/v1/remarks/{id}/start", remarkId)
                         .header("X-User-Id", masterId)

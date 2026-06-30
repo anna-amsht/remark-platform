@@ -4,6 +4,7 @@ import com.remark.platform.client.UserServiceClient;
 import com.remark.platform.dto.InternalRemarkResponse;
 import com.remark.platform.dto.AssignMasterRequest;
 import com.remark.platform.dto.CreateRemarkRequest;
+import com.remark.platform.dto.PagedRemarkResponse;
 import com.remark.platform.dto.RemarkCalendarEventResponse;
 import com.remark.platform.dto.RemarkResponse;
 import com.remark.platform.dto.ResolveRemarkRequest;
@@ -23,6 +24,8 @@ import com.remark.platform.repository.RemarkStatusHistoryRepository;
 import com.remark.platform.security.RoleCode;
 import com.remark.platform.security.UserContext;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +48,7 @@ public class RemarkService {
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Europe/Minsk");
     private static final LocalTime DEFAULT_WORK_START_TIME = LocalTime.of(9, 0);
     private static final LocalTime DEFAULT_WORK_END_TIME = LocalTime.of(10, 0);
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final RemarkRepository remarkRepository;
     private final RemarkCalendarEntryRepository remarkCalendarEntryRepository;
@@ -182,30 +186,30 @@ public class RemarkService {
     }
 
     @Transactional(readOnly = true)
-    public List<RemarkResponse> findAll(UserContext actor, RemarkStatus status, UUID branchIdFilter) {
-        List<Remark> remarks;
+    public PagedRemarkResponse findAll(
+            UserContext actor,
+            RemarkStatus status,
+            UUID branchIdFilter,
+            int page,
+            int size,
+            String search
+    ) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        String normalizedSearch = normalizeSearch(search);
+        PageRequest pageable = PageRequest.of(safePage, safeSize);
 
+        Page<Remark> remarks;
         if (actor.hasRole(RoleCode.MASTER) && !actor.hasAnyRole(RoleCode.ADMIN, RoleCode.BRANCH_HEAD, RoleCode.APPLICANT)) {
-            remarks = remarkRepository.findByAssignedMasterIdOrderByCreatedAtDesc(actor.userId());
+            remarks = remarkRepository.searchRemarksByMaster(actor.userId(), status, normalizedSearch, pageable);
         } else if (actor.hasAnyRole(RoleCode.ADMIN, RoleCode.BRANCH_HEAD)) {
-            if (branchIdFilter != null) {
-                remarks = status == null
-                        ? remarkRepository.findByBranchIdOrderByCreatedAtDesc(branchIdFilter)
-                        : remarkRepository.findByBranchIdAndStatusOrderByCreatedAtDesc(branchIdFilter, status);
-            } else {
-                remarks = remarkRepository.findAllOrderByCreatedAtDesc();
-            }
+            remarks = remarkRepository.searchRemarks(branchIdFilter, status, normalizedSearch, pageable);
         } else {
             UUID branchId = actor.requireBranchId();
-            remarks = status == null
-                    ? remarkRepository.findByBranchIdOrderByCreatedAtDesc(branchId)
-                    : remarkRepository.findByBranchIdAndStatusOrderByCreatedAtDesc(branchId, status);
+            remarks = remarkRepository.searchRemarks(branchId, status, normalizedSearch, pageable);
         }
 
-        return remarks.stream()
-                .filter(remark -> canView(remark, actor))
-                .map(RemarkMapper::toResponse)
-                .toList();
+        return toPagedResponse(remarks);
     }
 
     @Transactional
@@ -509,5 +513,25 @@ public class RemarkService {
     }
 
     private record CalendarEntryKey(UUID remarkId, LocalDate workDate) {
+    }
+
+    private static String normalizeSearch(String search) {
+        if (search == null) {
+            return null;
+        }
+        String trimmed = search.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static PagedRemarkResponse toPagedResponse(Page<Remark> page) {
+        return new PagedRemarkResponse(
+                page.getContent().stream().map(RemarkMapper::toResponse).toList(),
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isFirst(),
+                page.isLast()
+        );
     }
 }

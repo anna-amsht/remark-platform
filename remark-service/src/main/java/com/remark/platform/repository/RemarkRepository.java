@@ -2,6 +2,8 @@ package com.remark.platform.repository;
 
 import com.remark.platform.entity.Remark;
 import com.remark.platform.entity.RemarkStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,10 +16,37 @@ public interface RemarkRepository extends JpaRepository<Remark, UUID> {
 
     @Query("""
             SELECT r FROM Remark r
-            WHERE r.branchId = :branchId
+            WHERE (:branchId IS NULL OR r.branchId = :branchId)
+              AND (:status IS NULL OR r.status = :status)
+              AND (:search IS NULL OR :search = '' OR
+                   LOWER(r.remarkNumber) LIKE LOWER(CONCAT('%', :search, '%')) OR
+                   LOWER(r.objectBuilding) LIKE LOWER(CONCAT('%', :search, '%')) OR
+                   LOWER(r.description) LIKE LOWER(CONCAT('%', :search, '%')))
             ORDER BY r.createdAt DESC
             """)
-    List<Remark> findByBranchIdOrderByCreatedAtDesc(@Param("branchId") UUID branchId);
+    Page<Remark> searchRemarks(
+            @Param("branchId") UUID branchId,
+            @Param("status") RemarkStatus status,
+            @Param("search") String search,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT r FROM Remark r
+            WHERE r.assignedMasterId = :masterId
+              AND (:status IS NULL OR r.status = :status)
+              AND (:search IS NULL OR :search = '' OR
+                   LOWER(r.remarkNumber) LIKE LOWER(CONCAT('%', :search, '%')) OR
+                   LOWER(r.objectBuilding) LIKE LOWER(CONCAT('%', :search, '%')) OR
+                   LOWER(r.description) LIKE LOWER(CONCAT('%', :search, '%')))
+            ORDER BY r.createdAt DESC
+            """)
+    Page<Remark> searchRemarksByMaster(
+            @Param("masterId") UUID masterId,
+            @Param("status") RemarkStatus status,
+            @Param("search") String search,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT r FROM Remark r
@@ -41,21 +70,4 @@ public interface RemarkRepository extends JpaRepository<Remark, UUID> {
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to
     );
-
-    @Query("""
-            SELECT r FROM Remark r
-            WHERE r.branchId = :branchId
-              AND r.status = :status
-            ORDER BY r.createdAt DESC
-            """)
-    List<Remark> findByBranchIdAndStatusOrderByCreatedAtDesc(
-            @Param("branchId") UUID branchId,
-            @Param("status") RemarkStatus status
-    );
-
-    @Query("""
-            SELECT r FROM Remark r
-            ORDER BY r.createdAt DESC
-            """)
-    List<Remark> findAllOrderByCreatedAtDesc();
 }

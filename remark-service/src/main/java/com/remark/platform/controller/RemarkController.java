@@ -2,6 +2,7 @@ package com.remark.platform.controller;
 
 import com.remark.platform.dto.AssignMasterRequest;
 import com.remark.platform.dto.CreateRemarkRequest;
+import com.remark.platform.dto.PagedRemarkResponse;
 import com.remark.platform.dto.RemarkCalendarEventResponse;
 import com.remark.platform.dto.RemarkResponse;
 import com.remark.platform.dto.ResolveRemarkRequest;
@@ -57,15 +58,18 @@ public class RemarkController {
     }
 
     @GetMapping
-    public List<RemarkResponse> findAll(
+    public PagedRemarkResponse findAll(
             @RequestHeader(USER_ID_HEADER) UUID userId,
             @RequestHeader(value = BRANCH_ID_HEADER, required = false) UUID branchId,
             @RequestHeader(USER_ROLES_HEADER) String roles,
             @RequestParam(required = false) RemarkStatus status,
-            @RequestParam(required = false) UUID branchIdFilter
+            @RequestParam(required = false) UUID branchIdFilter,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String search
     ) {
         UserContext actor = UserContext.fromHeaders(userId, branchId, roles);
-        return remarkService.findAll(actor, status, branchIdFilter);
+        return remarkService.findAll(actor, status, branchIdFilter, page, size, search);
     }
 
     @GetMapping("/calendar")
