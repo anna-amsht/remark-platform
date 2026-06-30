@@ -25,8 +25,9 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.StreamSupport;
 
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
@@ -142,19 +143,29 @@ class RemarkFlowIntegrationTest {
                 .andExpect(jsonPath("$.estimatedResolutionUnit").value("DAYS"))
                 .andExpect(jsonPath("$.estimatedResolutionAt").value(estimatedResolutionAt.toString()));
 
-        mockMvc.perform(get("/api/v1/remarks/calendar")
+        MvcResult calendarResult = mockMvc.perform(get("/api/v1/remarks/calendar")
                         .header("X-User-Id", masterId)
                         .header("X-Branch-Id", branchId)
                         .header("X-User-Roles", "MASTER")
                         .param("from", estimatedResolutionAt.minusDays(1).toString())
                         .param("to", estimatedResolutionAt.plusDays(1).toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(greaterThanOrEqualTo(1)))
-                .andExpect(jsonPath("$[?(@.remarkId == '%s')][0].remarkNumber".formatted(remarkId)).value(created.get("remarkNumber").asText()))
-                .andExpect(jsonPath("$[?(@.remarkId == '%s')][0].objectBuilding".formatted(remarkId)).value("Building A"))
-                .andExpect(jsonPath("$[?(@.remarkId == '%s')][0].status".formatted(remarkId)).value("ASSIGNED"))
-                .andExpect(jsonPath("$[?(@.remarkId == '%s')][0].estimatedResolutionAt".formatted(remarkId))
-                        .value(estimatedResolutionAt.toString()));
+                .andReturn();
+
+        JsonNode calendarEvents = objectMapper.readTree(calendarResult.getResponse().getContentAsString());
+        assertThat(calendarEvents.isArray()).isTrue();
+        assertThat(calendarEvents.size()).isGreaterThanOrEqualTo(1);
+
+        JsonNode calendarEvent = StreamSupport.stream(calendarEvents.spliterator(), false)
+                .filter(event -> remarkId.toString().equals(event.path("remarkId").asText()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(calendarEvent.get("remarkNumber").asText()).isEqualTo(created.get("remarkNumber").asText());
+        assertThat(calendarEvent.get("objectBuilding").asText()).isEqualTo("Building A");
+        assertThat(calendarEvent.get("status").asText()).isEqualTo("ASSIGNED");
+        assertThat(calendarEvent.get("estimatedResolutionAt").asText())
+                .isEqualTo(estimatedResolutionAt.toString());
 
         mockMvc.perform(patch("/api/v1/remarks/{id}/start", remarkId)
                         .header("X-User-Id", masterId)
