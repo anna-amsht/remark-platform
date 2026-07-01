@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class RemarkService {
@@ -406,16 +407,22 @@ public class RemarkService {
         LocalDate lastExclusive = estimatedDate.plusDays(1).isBefore(toDate) ? estimatedDate.plusDays(1) : toDate;
 
         return firstDate.datesUntil(lastExclusive)
-                .map(workDate -> {
+                .flatMap(workDate -> {
                     RemarkCalendarEntry entry = entries.get(new CalendarEntryKey(remark.getId(), workDate));
                     if (entry != null && entry.isHidden()) {
-                        return null;
+                        return Stream.empty();
                     }
-                    return entry == null
-                            ? toCalendarEventResponse(remark, workDate, DEFAULT_WORK_START_TIME, DEFAULT_WORK_END_TIME, false)
+                    RemarkCalendarEventResponse response = entry == null
+                            ? toCalendarEventResponse(
+                                    remark,
+                                    workDate,
+                                    DEFAULT_WORK_START_TIME,
+                                    DEFAULT_WORK_END_TIME,
+                                    false
+                            )
                             : toCalendarEventResponse(remark, entry);
+                    return Stream.of(response);
                 })
-                .filter(java.util.Objects::nonNull)
                 .toList();
     }
 

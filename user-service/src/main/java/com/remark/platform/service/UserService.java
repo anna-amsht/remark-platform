@@ -22,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -48,12 +47,9 @@ public class UserService {
         referenceClient.ensureActiveBranchExists(request.branchId());
 
         String email = normalizeEmail(request.email());
-        Optional<User> existingUser = userRepository.findByEmailWithRoles(email);
-        if (existingUser.isPresent()) {
-            return handleExistingRegistration(existingUser.get(), request);
-        }
-
-        return UserMapper.toResponse(createPendingUser(request, email));
+        return userRepository.findByEmailWithRoles(email)
+                .map(existingUser -> handleExistingRegistration(existingUser, request))
+                .orElseGet(() -> UserMapper.toResponse(createPendingUser(request, email)));
     }
 
     @Transactional(readOnly = true)

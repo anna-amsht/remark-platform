@@ -39,10 +39,18 @@ final class RsaKeyLoader {
         }
 
         JwtKeyConfig.RsaKeyPair generated = generate();
-        Files.createDirectories(privatePath.getParent());
+        createParentDirectories(privatePath);
+        createParentDirectories(publicPath);
         writePrivateKey(privatePath, generated.privateKey());
         writePublicKey(publicPath, generated.publicKey());
         return generated;
+    }
+
+    private static void createParentDirectories(Path path) throws IOException {
+        Path parent = path.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
     }
 
     private static JwtKeyConfig.RsaKeyPair generate() throws NoSuchAlgorithmException {

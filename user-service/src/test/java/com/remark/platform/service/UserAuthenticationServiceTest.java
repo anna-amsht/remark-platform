@@ -90,4 +90,49 @@ class UserAuthenticationServiceTest {
         assertThatThrownBy(() -> userAuthenticationService.authenticate("user@example.com", "wrong"))
                 .isInstanceOf(InvalidCredentialsException.class);
     }
+
+    @Test
+    void getActiveUserById_returnsActiveUser() {
+        when(userRepository.findByIdWithRoles(activeUser.getId())).thenReturn(Optional.of(activeUser));
+
+        var response = userAuthenticationService.getActiveUserById(activeUser.getId());
+
+        assertThat(response.userId()).isEqualTo(activeUser.getId());
+        assertThat(response.roles()).containsExactly(RoleCode.APPLICANT);
+    }
+
+    @Test
+    void getActiveUserById_rejectsMissingUser() {
+        UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        when(userRepository.findByIdWithRoles(userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userAuthenticationService.getActiveUserById(userId))
+                .isInstanceOf(InvalidCredentialsException.class);
+    }
+
+    @Test
+    void getActiveUserById_rejectsInactiveUser() {
+        activeUser.setStatus(UserStatus.DISMISSED);
+        when(userRepository.findByIdWithRoles(activeUser.getId())).thenReturn(Optional.of(activeUser));
+
+        assertThatThrownBy(() -> userAuthenticationService.getActiveUserById(activeUser.getId()))
+                .isInstanceOf(InvalidCredentialsException.class);
+    }
+
+    @Test
+    void findActiveUsersByBranchAndRole_mapsRepositoryUsers() {
+        when(userRepository.findActiveByBranchAndRole(
+                UserStatus.ACTIVE,
+                activeUser.getBranchId(),
+                RoleCode.APPLICANT
+        )).thenReturn(java.util.List.of(activeUser));
+
+        var response = userAuthenticationService.findActiveUsersByBranchAndRole(
+                activeUser.getBranchId(),
+                RoleCode.APPLICANT
+        );
+
+        assertThat(response).hasSize(1);
+        assertThat(response.getFirst().email()).isEqualTo("user@example.com");
+    }
 }

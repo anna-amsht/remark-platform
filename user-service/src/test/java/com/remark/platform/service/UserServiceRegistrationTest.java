@@ -8,6 +8,7 @@ import com.remark.platform.entity.User;
 import com.remark.platform.entity.UserStatus;
 import com.remark.platform.exceptions.EmailAlreadyExistsException;
 import com.remark.platform.exceptions.InvalidRegistrationException;
+import com.remark.platform.exceptions.RoleNotFoundException;
 import com.remark.platform.repository.RoleRepository;
 import com.remark.platform.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -144,6 +145,52 @@ class UserServiceRegistrationTest {
         assertThatThrownBy(() -> userService.register(request))
                 .isInstanceOf(InvalidRegistrationException.class)
                 .hasMessageContaining("pending approval");
+    }
+
+    @Test
+    void register_rejectsAdminSelfRegistration() {
+        RegisterRequest adminRequest = new RegisterRequest(
+                "admin@example.com",
+                "Password123!",
+                "Admin User",
+                "Manager",
+                branchId,
+                RoleCode.ADMIN
+        );
+
+        assertThatThrownBy(() -> userService.register(adminRequest))
+                .isInstanceOf(InvalidRegistrationException.class)
+                .hasMessageContaining("Role cannot be registered");
+    }
+
+    @Test
+    void register_rejectsWhenRequestedRoleDoesNotExist() {
+        when(userRepository.findByEmailWithRoles("user@example.com")).thenReturn(Optional.empty());
+        when(roleRepository.findByCode(RoleCode.APPLICANT)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.register(request))
+                .isInstanceOf(RoleNotFoundException.class);
+    }
+
+    @Test
+    void register_updatesDismissedUserWithTrimmedFieldsAndNewBranch() {
+        User existing = existingUser(UserStatus.DISMISSED);
+        RegisterRequest trimmedRequest = new RegisterRequest(
+                "User@Example.com",
+                "Password123!",
+                " New Name ",
+                " New Position ",
+                branchId,
+                RoleCode.APPLICANT
+        );
+        when(userRepository.findByEmailWithRoles("user@example.com")).thenReturn(Optional.of(existing));
+        when(userRepository.save(existing)).thenReturn(existing);
+
+        var response = userService.register(trimmedRequest);
+
+        assertThat(response.fullName()).isEqualTo("New Name");
+        assertThat(response.position()).isEqualTo("New Position");
+        assertThat(response.branchId()).isEqualTo(branchId);
     }
 
     private User existingUser(UserStatus status) {

@@ -25,6 +25,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -39,6 +42,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -149,6 +154,57 @@ class RemarkServiceTest {
     }
 
     @Test
+    void setEstimatedResolutionStoresDurationInHours() {
+        Remark remark = remark(RemarkStatus.ASSIGNED);
+        remark.setAssignedMasterId(masterId);
+        remark.setCreatedAt(LocalDateTime.now(BUSINESS_ZONE).minusHours(1).atZone(BUSINESS_ZONE).toInstant());
+        when(remarkRepository.findById(remarkId)).thenReturn(Optional.of(remark));
+        when(remarkRepository.save(remark)).thenReturn(remark);
+
+        var response = remarkService.setEstimatedResolution(
+                remarkId,
+                new SetEstimatedResolutionRequest(LocalDateTime.now(BUSINESS_ZONE).plusHours(2).plusMinutes(1)),
+                master()
+        );
+
+        assertThat(response.estimatedResolutionUnit()).isEqualTo(EstimatedResolutionUnit.HOURS);
+        assertThat(response.estimatedResolutionDuration()).isGreaterThanOrEqualTo(3);
+    }
+
+    @Test
+    void setEstimatedResolutionStoresDurationInWeeks() {
+        Remark remark = remark(RemarkStatus.ASSIGNED);
+        remark.setAssignedMasterId(masterId);
+        remark.setCreatedAt(LocalDateTime.now(BUSINESS_ZONE).atZone(BUSINESS_ZONE).toInstant());
+        when(remarkRepository.findById(remarkId)).thenReturn(Optional.of(remark));
+        when(remarkRepository.save(remark)).thenReturn(remark);
+
+        var response = remarkService.setEstimatedResolution(
+                remarkId,
+                new SetEstimatedResolutionRequest(LocalDateTime.now(BUSINESS_ZONE).plusWeeks(1)),
+                master()
+        );
+
+        assertThat(response.estimatedResolutionUnit()).isEqualTo(EstimatedResolutionUnit.WEEKS);
+        assertThat(response.estimatedResolutionDuration()).isEqualTo(1);
+    }
+
+    @Test
+    void setEstimatedResolutionRejectsDateBeforeCreation() {
+        Remark remark = remark(RemarkStatus.ASSIGNED);
+        remark.setAssignedMasterId(masterId);
+        remark.setCreatedAt(LocalDateTime.now(BUSINESS_ZONE).plusDays(1).atZone(BUSINESS_ZONE).toInstant());
+        when(remarkRepository.findById(remarkId)).thenReturn(Optional.of(remark));
+
+        assertThatThrownBy(() -> remarkService.setEstimatedResolution(
+                remarkId,
+                new SetEstimatedResolutionRequest(LocalDateTime.now(BUSINESS_ZONE).plusHours(1)),
+                master()
+        )).isInstanceOf(InvalidRemarkTransitionException.class)
+                .hasMessageContaining("after remark creation");
+    }
+
+    @Test
     void startWorkMovesAssignedRemarkToInProgress() {
         Remark remark = remark(RemarkStatus.ASSIGNED);
         remark.setAssignedMasterId(masterId);
@@ -248,6 +304,25 @@ class RemarkServiceTest {
     }
 
     @Test
+    void setCalendarEventRejectsDateOutsideResolutionPeriod() {
+        Remark remark = remark(RemarkStatus.ASSIGNED);
+        remark.setAssignedMasterId(masterId);
+        remark.setEstimatedResolutionAt(LocalDateTime.now(BUSINESS_ZONE).plusDays(1));
+        when(remarkRepository.findById(remarkId)).thenReturn(Optional.of(remark));
+
+        assertThatThrownBy(() -> remarkService.setCalendarEvent(
+                remarkId,
+                new SetRemarkCalendarEventRequest(
+                        LocalDate.now(BUSINESS_ZONE).plusDays(3),
+                        LocalTime.of(10, 0),
+                        LocalTime.of(11, 0)
+                ),
+                master()
+        )).isInstanceOf(InvalidRemarkTransitionException.class)
+                .hasMessageContaining("within repair period");
+    }
+
+    @Test
     void removeCalendarEventHidesExistingEntry() {
         Remark remark = remark(RemarkStatus.IN_PROGRESS);
         remark.setAssignedMasterId(masterId);
@@ -262,6 +337,28 @@ class RemarkServiceTest {
 
         assertThat(entry.isHidden()).isTrue();
         verify(remarkCalendarEntryRepository).save(entry);
+    }
+
+    @Test
+    void removeCalendarEventCreatesHiddenDefaultEntryWhenMissing() {
+        Remark remark = remark(RemarkStatus.ASSIGNED);
+        remark.setAssignedMasterId(masterId);
+        remark.setEstimatedResolutionAt(LocalDateTime.now(BUSINESS_ZONE).plusDays(2));
+        LocalDate workDate = LocalDate.now(BUSINESS_ZONE).plusDays(1);
+        when(remarkRepository.findById(remarkId)).thenReturn(Optional.of(remark));
+        when(remarkCalendarEntryRepository.findByRemarkIdAndMasterIdAndWorkDate(remarkId, masterId, workDate))
+                .thenReturn(Optional.empty());
+        when(remarkCalendarEntryRepository.save(any(RemarkCalendarEntry.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        remarkService.removeCalendarEvent(remarkId, workDate, master());
+
+        verify(remarkCalendarEntryRepository).save(org.mockito.ArgumentMatchers.argThat(entry ->
+                entry.isHidden()
+                        && entry.getRemarkId().equals(remarkId)
+                        && entry.getWorkStartTime().equals(LocalTime.of(9, 0))
+                        && entry.getWorkEndTime().equals(LocalTime.of(10, 0))
+        ));
     }
 
     @Test
@@ -292,6 +389,63 @@ class RemarkServiceTest {
         assertThatThrownBy(() -> remarkService.findCalendarEvents(applicant(), null, null))
                 .isInstanceOf(RemarkAccessDeniedException.class)
                 .hasMessageContaining("Only master");
+    }
+
+    @Test
+    void findCalendarEventsRejectsInvalidRange() {
+        LocalDateTime from = LocalDateTime.now(BUSINESS_ZONE);
+
+        assertThatThrownBy(() -> remarkService.findCalendarEvents(master(), from, from))
+                .isInstanceOf(InvalidRemarkTransitionException.class)
+                .hasMessageContaining("range end");
+    }
+
+    @Test
+    void findAllUsesMasterSearchForMasterOnly() {
+        Remark remark = remark(RemarkStatus.ASSIGNED);
+        remark.setAssignedMasterId(masterId);
+        when(remarkRepository.searchRemarksByMaster(
+                eq(masterId),
+                eq(RemarkStatus.ASSIGNED),
+                eq("REM"),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(remark), PageRequest.of(0, 100), 1));
+
+        var response = remarkService.findAll(master(), RemarkStatus.ASSIGNED, null, -1, 500, " REM ");
+
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.page()).isZero();
+        assertThat(response.size()).isEqualTo(100);
+    }
+
+    @Test
+    void findAllUsesBranchFilterForBranchHead() {
+        Remark remark = remark(RemarkStatus.NEW);
+        when(remarkRepository.searchRemarks(
+                eq(branchId),
+                isNull(),
+                isNull(),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(remark)));
+
+        var response = remarkService.findAll(branchHead(), null, branchId, 0, 10, " ");
+
+        assertThat(response.content()).hasSize(1);
+    }
+
+    @Test
+    void findAllUsesActorBranchForApplicant() {
+        Remark remark = remark(RemarkStatus.NEW);
+        when(remarkRepository.searchRemarks(
+                eq(branchId),
+                isNull(),
+                isNull(),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(remark)));
+
+        var response = remarkService.findAll(applicant(), null, null, 0, 10, null);
+
+        assertThat(response.content()).hasSize(1);
     }
 
     @Test
