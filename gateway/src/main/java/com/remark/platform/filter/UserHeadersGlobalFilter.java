@@ -11,7 +11,6 @@ import org.springframework.cloud.gateway.filter.GlobalFilter;
 import reactor.core.publisher.Mono;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
@@ -54,11 +53,6 @@ public class UserHeadersGlobalFilter implements GlobalFilter, Ordered {
     private String extractRoles(Object rolesClaim) {
         if (rolesClaim instanceof Collection<?> collection) {
             return collection.stream()
-                    .map(Object::toString)
-                    .collect(Collectors.joining(","));
-        }
-        if (rolesClaim instanceof List<?> list) {
-            return list.stream()
                     .map(Object::toString)
                     .collect(Collectors.joining(","));
         }

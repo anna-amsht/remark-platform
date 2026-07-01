@@ -109,6 +109,33 @@ class UserServiceManagementTest {
     }
 
     @Test
+    void branchHeadSeesPendingApplicantsAndMastersForApproval() {
+        User branchHead = user(managerId, UserStatus.ACTIVE, branchId, RoleCode.BRANCH_HEAD);
+        User pendingMaster = user(targetId, UserStatus.PENDING, branchId, RoleCode.MASTER);
+        when(userRepository.findByIdWithRoles(managerId)).thenReturn(Optional.of(branchHead));
+        when(userRepository.findPendingByBranchAndRoleCodes(
+                UserStatus.PENDING,
+                branchId,
+                Set.of(RoleCode.APPLICANT, RoleCode.MASTER)
+        )).thenReturn(List.of(pendingMaster));
+
+        var responses = userService.findPendingApprovals(managerId);
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.getFirst().roles()).containsExactly(RoleCode.MASTER);
+    }
+
+    @Test
+    void applicantCannotReviewPendingApprovals() {
+        User applicant = user(managerId, UserStatus.ACTIVE, branchId, RoleCode.APPLICANT);
+        when(userRepository.findByIdWithRoles(managerId)).thenReturn(Optional.of(applicant));
+
+        assertThatThrownBy(() -> userService.findPendingApprovals(managerId))
+                .isInstanceOf(ApprovalNotAllowedException.class)
+                .hasMessageContaining("cannot review");
+    }
+
+    @Test
     void branchHeadFindsManagedMastersExceptSelf() {
         User branchHead = user(managerId, UserStatus.ACTIVE, branchId, RoleCode.BRANCH_HEAD);
         User master = user(targetId, UserStatus.ACTIVE, branchId, RoleCode.MASTER);
@@ -122,6 +149,33 @@ class UserServiceManagementTest {
     }
 
     @Test
+    void adminFindsManagedMastersAndBranchHeads() {
+        User admin = user(managerId, UserStatus.ACTIVE, branchId, RoleCode.ADMIN);
+        User branchHead = user(targetId, UserStatus.ACTIVE, branchId, RoleCode.BRANCH_HEAD);
+        when(userRepository.findByIdWithRoles(managerId)).thenReturn(Optional.of(admin));
+        when(userRepository.findActiveByBranchAndRoleCodes(
+                UserStatus.ACTIVE,
+                branchId,
+                Set.of(RoleCode.MASTER, RoleCode.BRANCH_HEAD)
+        )).thenReturn(List.of(branchHead));
+
+        var responses = userService.findManagedEmployees(managerId);
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.getFirst().roles()).containsExactly(RoleCode.BRANCH_HEAD);
+    }
+
+    @Test
+    void applicantCannotManageEmployees() {
+        User applicant = user(managerId, UserStatus.ACTIVE, branchId, RoleCode.APPLICANT);
+        when(userRepository.findByIdWithRoles(managerId)).thenReturn(Optional.of(applicant));
+
+        assertThatThrownBy(() -> userService.findManagedEmployees(managerId))
+                .isInstanceOf(ApprovalNotAllowedException.class)
+                .hasMessageContaining("cannot manage");
+    }
+
+    @Test
     void branchHeadDismissesMasterInSameBranch() {
         User branchHead = user(managerId, UserStatus.ACTIVE, branchId, RoleCode.BRANCH_HEAD);
         User master = user(targetId, UserStatus.ACTIVE, branchId, RoleCode.MASTER);
@@ -132,6 +186,31 @@ class UserServiceManagementTest {
         var response = userService.dismiss(targetId, managerId);
 
         assertThat(response.status()).isEqualTo(UserStatus.DISMISSED);
+    }
+
+    @Test
+    void adminDismissesBranchHeadInSameBranch() {
+        User admin = user(managerId, UserStatus.ACTIVE, branchId, RoleCode.ADMIN);
+        User branchHead = user(targetId, UserStatus.ACTIVE, branchId, RoleCode.BRANCH_HEAD);
+        when(userRepository.findByIdWithRoles(managerId)).thenReturn(Optional.of(admin));
+        when(userRepository.findByIdWithRoles(targetId)).thenReturn(Optional.of(branchHead));
+        when(userRepository.save(branchHead)).thenReturn(branchHead);
+
+        var response = userService.dismiss(targetId, managerId);
+
+        assertThat(response.status()).isEqualTo(UserStatus.DISMISSED);
+    }
+
+    @Test
+    void dismissRejectsDifferentBranch() {
+        User branchHead = user(managerId, UserStatus.ACTIVE, branchId, RoleCode.BRANCH_HEAD);
+        User master = user(targetId, UserStatus.ACTIVE, UUID.fromString("44444444-4444-4444-4444-444444444444"), RoleCode.MASTER);
+        when(userRepository.findByIdWithRoles(managerId)).thenReturn(Optional.of(branchHead));
+        when(userRepository.findByIdWithRoles(targetId)).thenReturn(Optional.of(master));
+
+        assertThatThrownBy(() -> userService.dismiss(targetId, managerId))
+                .isInstanceOf(ApprovalNotAllowedException.class)
+                .hasMessageContaining("same branch");
     }
 
     @Test
