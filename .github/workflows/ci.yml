@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build
+        run: mvn -B package -DskipTests
+
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: remark_platform
+          POSTGRES_USER: remark
+          POSTGRES_PASSWORD: remark
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U remark -d remark_platform"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Test
+        run: mvn -B test
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/remark_platform
+          SPRING_DATASOURCE_USERNAME: remark
+          SPRING_DATASOURCE_PASSWORD: remark
+          INTERNAL_SECRET: ci-test-secret
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          SPRING_KAFKA_LISTENER_AUTO_STARTUP: "false"
+
+  sonar:
+    needs: [build]
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: remark_platform
+          POSTGRES_USER: remark
+          POSTGRES_PASSWORD: remark
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U remark -d remark_platform"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Validate SonarCloud settings
+        run: |
+          if [ -z "${{ vars.SONAR_ORGANIZATION }}" ] || [ -z "${{ vars.SONAR_PROJECT_KEY }}" ]; then
+            echo "Add Repository variables: SONAR_ORGANIZATION and SONAR_PROJECT_KEY (SonarCloud project settings)."
+            exit 1
+          fi
+          if [ -z "${{ secrets.SONAR_TOKEN }}" ]; then
+            echo "Add Repository secret: SONAR_TOKEN."
+            exit 1
+          fi
+
+      - name: Test, coverage and SonarCloud analysis
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/remark_platform
+          SPRING_DATASOURCE_USERNAME: remark
+          SPRING_DATASOURCE_PASSWORD: remark
+          INTERNAL_SECRET: ci-test-secret
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          SPRING_KAFKA_LISTENER_AUTO_STARTUP: "false"
+        run: >
+          mvn -B verify -Pcoverage org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+          -Dsonar.host.url=https://sonarcloud.io
+          -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+          -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+
+  docker:
+    needs: [build, test, sonar]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - reference-service
+          - user-service
+          - auth-service
+          - remark-service
+          - notification-service
+          - report-service
+          - gateway
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -f ${{ matrix.module }}/Dockerfile -t remark-${{ matrix.module }} .

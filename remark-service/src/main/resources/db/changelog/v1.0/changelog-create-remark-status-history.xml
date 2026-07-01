@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="create-remark-status-history" author="remark-platform">
+        <createTable tableName="remark_status_history" schemaName="remark">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="remark_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="from_status" type="VARCHAR(32)"/>
+            <column name="to_status" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="changed_by_user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="comment" type="TEXT"/>
+            <column name="changed_at" type="TIMESTAMP WITH TIME ZONE">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addForeignKeyConstraint
+                baseTableSchemaName="remark"
+                baseTableName="remark_status_history"
+                baseColumnNames="remark_id"
+                referencedTableSchemaName="remark"
+                referencedTableName="remarks"
+                referencedColumnNames="id"
+                constraintName="fk_remark_status_history_remark"/>
+        <createIndex indexName="idx_remark_status_history_remark_id"
+                     tableName="remark_status_history"
+                     schemaName="remark">
+            <column name="remark_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

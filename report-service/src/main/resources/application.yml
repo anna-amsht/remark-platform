@@ -1,0 +1,39 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: report-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/remark_platform}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: report
+  liquibase:
+    default-schema: report
+    liquibase-schema: public
+    change-log: classpath:db/changelog/db.changelog-master.xml
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+app:
+  internal:
+    secret: ${INTERNAL_SECRET}
+  remark-service:
+    base-url: ${APP_REMARK_SERVICE_URL:http://localhost:8083}
+  notification-service:
+    base-url: ${APP_NOTIFICATION_SERVICE_URL:http://localhost:8085}
+  user-service:
+    base-url: ${APP_USER_SERVICE_URL:http://localhost:8089}
+  reference-service:
+    base-url: ${APP_REFERENCE_SERVICE_URL:http://localhost:8084}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <include file="db/changelog/v1.0/changelog-create-remark-schema.xml"/>
+    <include file="db/changelog/v1.0/changelog-create-remark-sequences.xml"/>
+    <include file="db/changelog/v1.0/changelog-create-remarks.xml"/>
+    <include file="db/changelog/v1.0/changelog-create-remark-status-history.xml"/>
+    <include file="db/changelog/v1.1/changelog-add-estimated-resolution.xml"/>
+    <include file="db/changelog/v1.2/changelog-create-remark-calendar-events.xml"/>
+    <include file="db/changelog/v1.3/changelog-remove-closed-status.xml"/>
+    <include file="db/changelog/v1.0/changelog-create-processed-events.xml"/>
+
+</databaseChangeLog>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="remark-remove-closed-status" author="Anna">
+        <sql>
+            UPDATE remark.remarks
+            SET status = 'RESOLVED',
+                resolved_at = COALESCE(resolved_at, closed_at)
+            WHERE status = 'CLOSED';
+        </sql>
+        <sql>
+            UPDATE remark.remark_status_history
+            SET to_status = 'RESOLVED'
+            WHERE to_status = 'CLOSED';
+        </sql>
+        <sql>
+            UPDATE remark.remark_status_history
+            SET from_status = 'RESOLVED'
+            WHERE from_status = 'CLOSED';
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

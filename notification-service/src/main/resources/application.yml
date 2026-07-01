@@ -1,0 +1,29 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: notification-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/remark_platform}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: notification
+  liquibase:
+    default-schema: notification
+    liquibase-schema: public
+    change-log: classpath:db/changelog/db.changelog-master.xml
+
+app:
+  internal:
+    secret: ${INTERNAL_SECRET}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs

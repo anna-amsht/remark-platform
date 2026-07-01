@@ -1,0 +1,16 @@
+package com.remark.platform.config;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+import java.time.Duration;
+
+@ConfigurationProperties(prefix = "app.jwt")
+public record JwtProperties(
+        String issuer,
+        String keyId,
+        Duration accessTokenTtl,
+        Duration refreshTokenTtl,
+        String privateKeyPath,
+        String publicKeyPath
+) {
+}

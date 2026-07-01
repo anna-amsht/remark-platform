@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="seed-branch-admins" author="remark-platform">
+        <sql>
+            INSERT INTO "user".users (email, password_hash, full_name, position, branch_id, status, created_at, updated_at)
+            SELECT
+                'admin-' || b.code || '@remark.local',
+                '$2a$10$cWBw.zR6J8KsATHCyG1BdudJd/Yk/IQdLMJiV3QpuohmHQH2bo.1G',
+                'Администратор ' || b.name,
+                'Администратор',
+                b.id,
+                'ACTIVE',
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+            FROM ref.branches b
+            WHERE b.active = true;
+        </sql>
+        <sql>
+            INSERT INTO "user".user_roles (user_id, role_id)
+            SELECT u.id, r.id
+            FROM "user".users u
+            JOIN "user".roles r ON r.code = 'ADMIN'
+            WHERE u.email LIKE 'admin-%@remark.local';
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
