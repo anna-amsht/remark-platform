@@ -118,7 +118,8 @@ public class RemarkService {
                 .stream()
                 .collect(Collectors.toMap(
                         entry -> new CalendarEntryKey(entry.getRemarkId(), entry.getWorkDate()),
-                        Function.identity()
+                        Function.identity(),
+                        (existing, duplicate) -> existing
                 ));
 
         return remarkRepository.findByAssignedMasterIdOrderByCreatedAtDesc(actor.userId())

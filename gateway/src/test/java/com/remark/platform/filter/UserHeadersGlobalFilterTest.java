@@ -14,6 +14,7 @@ import org.springframework.web.server.ServerWebExchange;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,7 +44,7 @@ class UserHeadersGlobalFilterTest {
                 .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication))
                 .block();
 
-        ServerHttpRequest request = filteredExchange.get().getRequest();
+        ServerHttpRequest request = requireExchange(filteredExchange).getRequest();
         assertThat(request.getHeaders().getFirst(UserHeadersGlobalFilter.USER_ID_HEADER)).isEqualTo("user-1");
         assertThat(request.getHeaders().getFirst(UserHeadersGlobalFilter.BRANCH_ID_HEADER)).isEqualTo("branch-1");
         assertThat(request.getHeaders().getFirst(UserHeadersGlobalFilter.USER_ROLES_HEADER)).isEqualTo("APPLICANT,MASTER");
@@ -60,7 +61,7 @@ class UserHeadersGlobalFilterTest {
 
         filter.filter(exchange, chain).block();
 
-        assertThat(filteredExchange.get()).isSameAs(exchange);
+        assertThat(requireExchange(filteredExchange)).isSameAs(exchange);
     }
 
     @Test
@@ -80,9 +81,9 @@ class UserHeadersGlobalFilterTest {
                 .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication))
                 .block();
 
-        assertThat(filteredExchange.get().getRequest().getHeaders()
+        assertThat(requireExchange(filteredExchange).getRequest().getHeaders()
                 .getFirst(UserHeadersGlobalFilter.USER_ROLES_HEADER)).isEqualTo("ADMIN");
-        assertThat(filteredExchange.get().getRequest().getHeaders()
+        assertThat(requireExchange(filteredExchange).getRequest().getHeaders()
                 .containsKey(UserHeadersGlobalFilter.BRANCH_ID_HEADER)).isFalse();
     }
 
@@ -99,5 +100,9 @@ class UserHeadersGlobalFilterTest {
                 Map.of("alg", "none"),
                 claims
         );
+    }
+
+    private static ServerWebExchange requireExchange(AtomicReference<ServerWebExchange> exchange) {
+        return Objects.requireNonNull(exchange.get());
     }
 }
