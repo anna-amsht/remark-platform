@@ -111,20 +111,11 @@ jobs:
           INTERNAL_SECRET: ci-test-secret
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
           SPRING_KAFKA_LISTENER_AUTO_STARTUP: "false"
-        run: |
-          mvn -B verify -Pcoverage org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-            -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }} \
-            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }} \
-            -Dsonar.java.source=21 \
-            -Dsonar.sourceEncoding=UTF-8 \
-            "-Dsonar.exclusions=**/target/**,**/*Application.java,**/db/changelog/**,**/Dockerfile" \
-            "-Dsonar.coverage.exclusions=**/gateway/**,**/report-service/**,**/remark-common-events/**,**/config/**,**/controller/**,**/dto/**,**/entity/**,**/exceptions/**,**/client/**,**/kafka/**,**/repository/**,**/security/**,**/ProcessedEventService.java,**/*ApplicationEvent.java,**/*Mapper.java" \
-            "-Dsonar.cpd.exclusions=**/Dockerfile,**/InternalSecretFilter.java,**/config/**,**/controller/**,**/client/**,**/dto/**,**/entity/**,**/repository/**,**/kafka/**,**/application.yml" \
-            "-Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml" \
-            -Dsonar.java.coveragePlugin=jacoco \
-            -Dsonar.qualitygate.wait=true \
-            -Dsonar.qualitygate.timeout=300
+        run: >
+          mvn -B verify -Pcoverage org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+          -Dsonar.host.url=https://sonarcloud.io
+          -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+          -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
 
   docker:
     needs: [build, test, sonar]
